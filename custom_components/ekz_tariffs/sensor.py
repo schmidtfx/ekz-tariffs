@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 from typing import Any
 
@@ -61,10 +62,8 @@ class EkzCurrentPriceSensor(SensorEntity):
 
     def _clear_boundary_timer(self) -> None:
         if self._unsub_boundary:
-            try:
+            with contextlib.suppress(Exception):
                 self._unsub_boundary()
-            except Exception:
-                pass
             self._unsub_boundary = None
 
     def _schedule_next_boundary_update(self) -> None:

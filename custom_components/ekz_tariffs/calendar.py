@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 from dataclasses import dataclass
 
@@ -63,10 +64,8 @@ class EkzTariffsCalendar(CalendarEntity):
 
     def _clear_scheduled_callbacks(self) -> None:
         for unsub in self._unsubs:
-            try:
+            with contextlib.suppress(Exception):
                 unsub()
-            except Exception:
-                pass
         self._unsubs.clear()
 
     def _schedule_callbacks(self) -> None:
