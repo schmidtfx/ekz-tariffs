@@ -4,13 +4,12 @@ import datetime as dt
 from unittest.mock import patch
 
 import pytest
-from custom_components.ekz_tariffs.const import EVENT_TARIFF_START, EVENT_TYPE
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
-    async_capture_events,
-    async_fire_time_changed,
-)
+    async_capture_events, async_fire_time_changed)
+
+from custom_components.ekz_tariffs.const import EVENT_TARIFF_START, EVENT_TYPE
 
 
 @pytest.mark.asyncio
@@ -29,6 +28,7 @@ async def test_calendar_fires_callback_event_on_start(
     from tests.conftest import make_slots
 
     slots = make_slots(start, [0.30, 0.30])
+    events = async_capture_events(hass, EVENT_TYPE)
 
     with (
         patch("homeassistant.util.dt.now", return_value=now),
@@ -40,12 +40,11 @@ async def test_calendar_fires_callback_event_on_start(
         assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
 
-    events = async_capture_events(hass, EVENT_TYPE)
+        # Fire time change to exactly event start
+        async_fire_time_changed(hass, start)
+        await hass.async_block_till_done()
 
-    # Fire time change to exactly event start
-    async_fire_time_changed(hass, start)
-    await hass.async_block_till_done()
-
+    print(events)
     assert len(events) >= 1
     assert events[-1].data["type"] == EVENT_TARIFF_START
     assert events[-1].data["price_chf_per_kwh"] == 0.30

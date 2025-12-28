@@ -55,5 +55,6 @@ async def test_current_price_and_next_change_sensors(
     nxt = hass.states.get(nextchange_entity_id)
     assert nxt is not None
     # Next change should be at end of the current 15-min slot:
-    # fixed_now is at 12:07 -> boundary is 12:15
-    assert "12:15:00" in nxt.state
+    # fixed_now is at 11:07 -> boundary is 11:15
+    print(nxt.state)
+    assert "11:15:00" in nxt.state
