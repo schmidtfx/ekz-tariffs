@@ -16,6 +16,7 @@ from custom_components.ekz_tariffs.const import EVENT_TARIFF_START, EVENT_TYPE
 async def test_calendar_fires_callback_event_on_start(
     hass: HomeAssistant, mock_config_entry
 ):
+    await hass.config.async_set_time_zone("Europe/Zurich")
     mock_config_entry.add_to_hass(hass)
 
     # Choose a start in the future relative to patched "now"
