@@ -2,7 +2,7 @@
   "domain": "ekz_tariffs",
   "name": "EKZ Dynamic Tariffs",
   "config_flow": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "documentation": "https://github.com/schmidtfx/ekz-tariffs",
   "codeowners": ["@schmidtfx"],
   "requirements": [],
