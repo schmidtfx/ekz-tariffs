@@ -31,9 +31,10 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
             now = dt_util.now()
-            tomorrow = (now + timedelta(days=1)).date()
-            start = dt_util.start_of_local_day(dt_util.as_local(dt_util.dt.datetime.combine(tomorrow, dt_util.dt.time.min)))
-            end = start + timedelta(days=1)
+            today = dt_util.as_local(now).date()
+
+            start = dt_util.start_of_local_day(dt_util.as_local(dt_util.dt.datetime.combine(today, dt_util.dt.time.min)))
+            end = start + timedelta(days=2)
             slots =  await self._api.fetch_tariffs(
                 tariff_name=self._tariff_name,
                 start=start,
