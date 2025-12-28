@@ -4,11 +4,10 @@ import datetime as dt
 from unittest.mock import patch
 
 import pytest
+from custom_components.ekz_tariffs.const import CONF_TARIFF_NAME, DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-from custom_components.ekz_tariffs.const import CONF_TARIFF_NAME, DOMAIN
 
 
 @pytest.fixture(autouse=True)
