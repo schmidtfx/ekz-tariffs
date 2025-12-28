@@ -1,11 +1,11 @@
 {
   "domain": "ekz_tariffs",
   "name": "EKZ Dynamic Tariffs",
-  "config_flow": true,
-  "version": "0.1.1",
-  "documentation": "https://github.com/schmidtfx/ekz-tariffs",
   "codeowners": ["@schmidtfx"],
-  "requirements": [],
+  "config_flow": true,
+  "documentation": "https://github.com/schmidtfx/ekz-tariffs",
   "integration_type": "service",
-  "iot_class": "cloud_polling"
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.1"
 }
