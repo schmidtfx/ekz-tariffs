@@ -4,16 +4,19 @@ import datetime as dt
 from unittest.mock import patch
 
 import pytest
+from custom_components.ekz_tariffs.const import EVENT_TARIFF_START, EVENT_TYPE
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
-    async_capture_events, async_fire_time_changed)
-
-from custom_components.ekz_tariffs.const import EVENT_TARIFF_START, EVENT_TYPE
+    async_capture_events,
+    async_fire_time_changed,
+)
 
 
 @pytest.mark.asyncio
-async def test_calendar_fires_callback_event_on_start(hass: HomeAssistant, mock_config_entry):
+async def test_calendar_fires_callback_event_on_start(
+    hass: HomeAssistant, mock_config_entry
+):
     await hass.config.async_set_time_zone("Europe/Zurich")
     mock_config_entry.add_to_hass(hass)
 
