@@ -7,6 +7,7 @@ from custom_components.ekz_tariffs.api import TariffSlot
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
@@ -19,12 +20,13 @@ from .utils import FusedEvent, fuse_slots
 class EkzTariffsCalendar(CalendarEntity):
     _attr_name: str
     _attr_unique_id: str
+    _attr_has_entity_name = True
 
     def __init__(
         self,
         hass: HomeAssistant,
         entry_id: str,
-        tariff_name: str,
+        tariff_name: str | None,
         coordinator: EkzTariffsCoordinator,
     ) -> None:
         self.hass = hass
@@ -32,7 +34,10 @@ class EkzTariffsCalendar(CalendarEntity):
         self._tariff_name = tariff_name
         self._coordinator = coordinator
         self._attr_unique_id = f"{entry_id}_calendar"
-        self._attr_name = f"EKZ Tariffs: {tariff_name}"
+        self._attr_name = "EKZ Tariffs"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+        )
 
         self._events: list[CalendarEvent] = []
         self._fused: list[FusedEvent] = []
@@ -60,17 +65,16 @@ class EkzTariffsCalendar(CalendarEntity):
 
             def _make_cb(start: dt.datetime, end: dt.datetime, price: float):
                 async def _cb(_now: dt.datetime) -> None:
-                    self.hass.bus.async_fire(
-                        EVENT_TYPE,
-                        {
-                            "type": EVENT_TARIFF_START,
-                            "entry_id": self._entry_id,
-                            "tariff_name": self._tariff_name,
-                            "start": start.isoformat(),
-                            "end": start.isoformat(),
-                            "price_chf_per_kwh": price,
-                        },
-                    )
+                    event_data = {
+                        "type": EVENT_TARIFF_START,
+                        "entry_id": self._entry_id,
+                        "start": start.isoformat(),
+                        "end": start.isoformat(),
+                        "price_chf_per_kwh": price,
+                    }
+                    if self._tariff_name:
+                        event_data["tariff_name"] = self._tariff_name
+                    self.hass.bus.async_fire(EVENT_TYPE, event_data)
 
                 return _cb
 
@@ -85,13 +89,16 @@ class EkzTariffsCalendar(CalendarEntity):
 
         events: list[CalendarEvent] = []
         for idx, fe in enumerate(self._fused):
-            summary = f"EKZ {self._tariff_name}: {fe.price:.5f} CHF/kWh"
-            desc = (
-                f"Tariff: {self._tariff_name}\n"
-                f"Price: {fe.price:.6f} CHF/kWh\n"
-                f"From: {fe.start.isoformat()}\n"
-                f"To: {fe.end.isoformat()}\n"
-            )
+            tariff_label = f"EKZ {self._tariff_name}" if self._tariff_name else "EKZ"
+            summary = f"{tariff_label}: {fe.price:.5f} CHF/kWh"
+            desc_parts = [
+                f"Price: {fe.price:.6f} CHF/kWh",
+                f"From: {fe.start.isoformat()}",
+                f"To: {fe.end.isoformat()}",
+            ]
+            if self._tariff_name:
+                desc_parts.insert(0, f"Tariff: {self._tariff_name}")
+            desc = "\n".join(desc_parts) + "\n"
             events.append(
                 CalendarEvent(
                     start=fe.start,

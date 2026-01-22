@@ -7,10 +7,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
 from .api import TariffSlot
+from .const import DOMAIN
 from .coordinator import EkzTariffsCoordinator
 from .statistics import bucket_prices, rolling_window_extreme
 from .utils import next_midnight
@@ -25,7 +27,7 @@ class EkzWindowExtremeSensor(SensorEntity):
         self,
         hass: HomeAssistant,
         entry_id: str,
-        tariff_name: str,
+        tariff_name: str | None,
         coordinator: EkzTariffsCoordinator,
         day_offset: int,
         window_minutes: int,
@@ -43,6 +45,9 @@ class EkzWindowExtremeSensor(SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{unique_suffix}"
         self._unsub_midnight = None
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+        )
 
     async def async_added_to_hass(self):
         self.async_on_remove(self._coordinator.async_add_listener(self._handle_update))
@@ -94,12 +99,14 @@ class EkzWindowExtremeSensor(SensorEntity):
         )
 
         attrs: dict[str, Any] = {
-            "tariff_name": self._tariff_name,
             "date": day.isoformat(),
             "window_minutes": self._window_minutes,
             "mode": self._mode,
             "missing_buckets": prices.count(None),
         }
+
+        if self._tariff_name:
+            attrs["tariff_name"] = self._tariff_name
 
         if res is not None:
             attrs["window_start"] = res.start.isoformat()

@@ -4,10 +4,12 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
 from .api import TariffSlot
+from .const import DOMAIN
 from .coordinator import EkzTariffsCoordinator
 from .statistics import daily_stats
 from .utils import next_midnight
@@ -23,7 +25,7 @@ class _EkzDailyAverageSensor(SensorEntity):
         self,
         hass: HomeAssistant,
         entry_id: str,
-        tariff_name: str,
+        tariff_name: str | None,
         coordinator: EkzTariffsCoordinator,
         day_offset: int,
         name: str,
@@ -37,6 +39,9 @@ class _EkzDailyAverageSensor(SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{unique_suffix}"
         self._unsub_midnight = None
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+        )
 
     async def async_added_to_hass(self):
         self.async_on_remove(self._coordinator.async_add_listener(self._handle_update))
@@ -80,11 +85,13 @@ class _EkzDailyAverageSensor(SensorEntity):
         stats = daily_stats(slots, day)
 
         attrs: dict[str, Any] = {
-            "tariff_name": self._tariff_name,
             "day": day.isoformat(),
             "slots_count": stats["slots_count"],
             "covered_minutes": stats["covered_minutes"],
         }
+
+        if self._tariff_name:
+            attrs["tariff_name"] = self._tariff_name
 
         attrs["min_price_chf_per_kwh"] = (
             round(stats["min"], 6) if stats["min"] is not None else None
@@ -113,7 +120,7 @@ class EkzAverageTodaySensor(_EkzDailyAverageSensor):
             tariff_name,
             coordinator,
             day_offset=0,
-            name=f"Average price today: {tariff_name}",
+            name="Average price today",
             unique_suffix="avg_today",
         )
 
@@ -126,6 +133,6 @@ class EkzAverageTomorrowSensor(_EkzDailyAverageSensor):
             tariff_name,
             coordinator,
             day_offset=1,
-            name=f"Average price tomorrow: {tariff_name}",
+            name="Average price tomorrow",
             unique_suffix="avg_tomorrow",
         )

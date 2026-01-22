@@ -3,10 +3,11 @@
   "name": "EKZ Dynamic Tariffs",
   "codeowners": ["@schmidtfx"],
   "config_flow": true,
+  "dependencies": ["application_credentials"],
   "documentation": "https://github.com/schmidtfx/ekz-tariffs",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/schmidtfx/ekz-tariffs/issues",
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
