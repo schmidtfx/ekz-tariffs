@@ -36,5 +36,97 @@
   },
   "application_credentials": {
     "description": "To set up OAuth credentials for EKZ:\n\n1. Contact EKZ to request OAuth credentials for the myEKZ API\n2. Fill out their OAuth application form\n3. Once approved, you'll receive a Client ID and Client Secret\n4. Enter those credentials here\n\nFor more information, visit: [EKZ OAuth Setup]({oauth_info_url})"
+  },
+  "entity": {
+    "sensor": {
+      "current_price": {
+        "name": "Current price"
+      },
+      "next_change": {
+        "name": "Next change"
+      },
+      "avg_today": {
+        "name": "Average price today"
+      },
+      "avg_tomorrow": {
+        "name": "Average price tomorrow"
+      },
+      "cheapest_25_percent": {
+        "name": "Cheapest 25% hours today"
+      },
+      "cheapest_10_percent": {
+        "name": "Cheapest 10% hours today"
+      },
+      "cheapest_50_percent": {
+        "name": "Cheapest 50% hours today"
+      },
+      "most_expensive_25_percent": {
+        "name": "Most expensive 25% hours today"
+      },
+      "most_expensive_10_percent": {
+        "name": "Most expensive 10% hours today"
+      },
+      "in_cheapest_2h_window": {
+        "name": "In Cheapest 2h window today"
+      },
+      "in_cheapest_4h_window": {
+        "name": "In Cheapest 4h window today"
+      },
+      "in_most_expensive_2h_window": {
+        "name": "In Most expensive 2h window today"
+      },
+      "in_most_expensive_4h_window": {
+        "name": "In Most expensive 4h window today"
+      },
+      "lowest_4h_today": {
+        "name": "Lowest 4h window today"
+      },
+      "lowest_2h_today": {
+        "name": "Lowest 2h window today"
+      },
+      "highest_4h_today": {
+        "name": "Highest 4h window today"
+      },
+      "highest_2h_today": {
+        "name": "Highest 2h window today"
+      },
+      "lowest_4h_tomorrow": {
+        "name": "Lowest 4h window tomorrow"
+      },
+      "lowest_2h_tomorrow": {
+        "name": "Lowest 2h window tomorrow"
+      },
+      "highest_4h_tomorrow": {
+        "name": "Highest 4h window tomorrow"
+      },
+      "highest_2h_tomorrow": {
+        "name": "Highest 2h window tomorrow"
+      },
+      "ems_linking_url": {
+        "name": "EMS linking URL",
+        "state": {
+          "link_required": "Link required",
+          "linked": "Linked"
+        }
+      }
+    },
+    "binary_sensor": {
+      "ems_link_status": {
+        "name": "EMS link status"
+      }
+    },
+    "button": {
+      "refresh_tariffs": {
+        "name": "Refresh tariffs"
+      },
+      "check_ems_link_status": {
+        "name": "Check EMS link status"
+      }
+    },
+    "calendar": {
+      "ekz_tariffs": {
+        "name": "EKZ Tariffs"
+      }
+    }
   }
 }

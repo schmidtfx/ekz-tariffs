@@ -306,9 +306,9 @@ class EkzEmsLinkingUrlSensor(SensorEntity):
 
         result = self._coordinator.data
         if result.get("link_status") == "link_required":
-            return "Link required"
+            return "link_required"
 
-        return "Linked"
+        return "linked"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

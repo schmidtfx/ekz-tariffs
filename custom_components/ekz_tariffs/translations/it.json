@@ -36,5 +36,97 @@
   },
   "application_credentials": {
     "description": "Per configurare le credenziali OAuth per EKZ:\n\n1. Contatta EKZ per richiedere le credenziali OAuth per l'API myEKZ\n2. Compila il loro modulo di richiesta OAuth\n3. Una volta approvato, riceverai un ID client e un segreto client\n4. Inserisci queste credenziali qui\n\nPer ulteriori informazioni, visita: [Configurazione OAuth EKZ]({oauth_info_url})"
+  },
+  "entity": {
+    "sensor": {
+      "current_price": {
+        "name": "Prezzo attuale"
+      },
+      "next_change": {
+        "name": "Prossimo cambio"
+      },
+      "avg_today": {
+        "name": "Prezzo medio oggi"
+      },
+      "avg_tomorrow": {
+        "name": "Prezzo medio domani"
+      },
+      "cheapest_25_percent": {
+        "name": "25% ore più economiche oggi"
+      },
+      "cheapest_10_percent": {
+        "name": "10% ore più economiche oggi"
+      },
+      "cheapest_50_percent": {
+        "name": "50% ore più economiche oggi"
+      },
+      "most_expensive_25_percent": {
+        "name": "25% ore più costose oggi"
+      },
+      "most_expensive_10_percent": {
+        "name": "10% ore più costose oggi"
+      },
+      "in_cheapest_2h_window": {
+        "name": "Nella finestra 2h più economica oggi"
+      },
+      "in_cheapest_4h_window": {
+        "name": "Nella finestra 4h più economica oggi"
+      },
+      "in_most_expensive_2h_window": {
+        "name": "Nella finestra 2h più costosa oggi"
+      },
+      "in_most_expensive_4h_window": {
+        "name": "Nella finestra 4h più costosa oggi"
+      },
+      "lowest_4h_today": {
+        "name": "Finestra 4h più economica oggi"
+      },
+      "lowest_2h_today": {
+        "name": "Finestra 2h più economica oggi"
+      },
+      "highest_4h_today": {
+        "name": "Finestra 4h più costosa oggi"
+      },
+      "highest_2h_today": {
+        "name": "Finestra 2h più costosa oggi"
+      },
+      "lowest_4h_tomorrow": {
+        "name": "Finestra 4h più economica domani"
+      },
+      "lowest_2h_tomorrow": {
+        "name": "Finestra 2h più economica domani"
+      },
+      "highest_4h_tomorrow": {
+        "name": "Finestra 4h più costosa domani"
+      },
+      "highest_2h_tomorrow": {
+        "name": "Finestra 2h più costosa domani"
+      },
+      "ems_linking_url": {
+        "name": "URL collegamento EMS",
+        "state": {
+          "link_required": "Collegamento richiesto",
+          "linked": "Collegato"
+        }
+      }
+    },
+    "binary_sensor": {
+      "ems_link_status": {
+        "name": "Stato collegamento EMS"
+      }
+    },
+    "button": {
+      "refresh_tariffs": {
+        "name": "Aggiorna tariffe"
+      },
+      "check_ems_link_status": {
+        "name": "Verifica stato collegamento EMS"
+      }
+    },
+    "calendar": {
+      "ekz_tariffs": {
+        "name": "Tariffe EKZ"
+      }
+    }
   }
 }

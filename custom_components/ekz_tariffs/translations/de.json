@@ -36,5 +36,97 @@
   },
   "application_credentials": {
     "description": "Um OAuth-Anmeldedaten für EKZ einzurichten:\n\n1. Kontaktieren Sie EKZ, um OAuth-Anmeldedaten für die myEKZ-API anzufordern\n2. Füllen Sie deren OAuth-Antragsformular aus\n3. Nach der Genehmigung erhalten Sie eine Client-ID und ein Client-Secret\n4. Geben Sie diese Anmeldedaten hier ein\n\nWeitere Informationen finden Sie unter: [EKZ OAuth-Einrichtung]({oauth_info_url})"
+  },
+  "entity": {
+    "sensor": {
+      "current_price": {
+        "name": "Aktueller Preis"
+      },
+      "next_change": {
+        "name": "Nächste Änderung"
+      },
+      "avg_today": {
+        "name": "Durchschnittspreis heute"
+      },
+      "avg_tomorrow": {
+        "name": "Durchschnittspreis morgen"
+      },
+      "cheapest_25_percent": {
+        "name": "Günstigste 25% Stunden heute"
+      },
+      "cheapest_10_percent": {
+        "name": "Günstigste 10% Stunden heute"
+      },
+      "cheapest_50_percent": {
+        "name": "Günstigste 50% Stunden heute"
+      },
+      "most_expensive_25_percent": {
+        "name": "Teuerste 25% Stunden heute"
+      },
+      "most_expensive_10_percent": {
+        "name": "Teuerste 10% Stunden heute"
+      },
+      "in_cheapest_2h_window": {
+        "name": "Im günstigsten 2h-Fenster heute"
+      },
+      "in_cheapest_4h_window": {
+        "name": "Im günstigsten 4h-Fenster heute"
+      },
+      "in_most_expensive_2h_window": {
+        "name": "Im teuersten 2h-Fenster heute"
+      },
+      "in_most_expensive_4h_window": {
+        "name": "Im teuersten 4h-Fenster heute"
+      },
+      "lowest_4h_today": {
+        "name": "Günstigstes 4h-Fenster heute"
+      },
+      "lowest_2h_today": {
+        "name": "Günstigstes 2h-Fenster heute"
+      },
+      "highest_4h_today": {
+        "name": "Teuerstes 4h-Fenster heute"
+      },
+      "highest_2h_today": {
+        "name": "Teuerstes 2h-Fenster heute"
+      },
+      "lowest_4h_tomorrow": {
+        "name": "Günstigstes 4h-Fenster morgen"
+      },
+      "lowest_2h_tomorrow": {
+        "name": "Günstigstes 2h-Fenster morgen"
+      },
+      "highest_4h_tomorrow": {
+        "name": "Teuerstes 4h-Fenster morgen"
+      },
+      "highest_2h_tomorrow": {
+        "name": "Teuerstes 2h-Fenster morgen"
+      },
+      "ems_linking_url": {
+        "name": "EMS-Verknüpfungs-URL",
+        "state": {
+          "link_required": "Verknüpfung erforderlich",
+          "linked": "Verknüpft"
+        }
+      }
+    },
+    "binary_sensor": {
+      "ems_link_status": {
+        "name": "EMS-Verknüpfungsstatus"
+      }
+    },
+    "button": {
+      "refresh_tariffs": {
+        "name": "Tarife aktualisieren"
+      },
+      "check_ems_link_status": {
+        "name": "EMS-Verknüpfungsstatus prüfen"
+      }
+    },
+    "calendar": {
+      "ekz_tariffs": {
+        "name": "EKZ Tarife"
+      }
+    }
   }
 }
