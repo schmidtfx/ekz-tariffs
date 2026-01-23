@@ -21,6 +21,7 @@ from .utils import next_midnight
 class EkzWindowExtremeSensor(SensorEntity):
     _attr_native_unit_of_measurement = "CHF/kWh"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
     _attr_has_entity_name = True
 
     def __init__(

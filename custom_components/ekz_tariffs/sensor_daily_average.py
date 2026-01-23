@@ -30,6 +30,7 @@ class _EkzDailyAverageSensor(SensorEntity):
         day_offset: int,
         name: str,
         unique_suffix: str,
+        enabled_default: bool = True,
     ):
         self.hass = hass
         self._entry_id = entry_id
@@ -38,6 +39,7 @@ class _EkzDailyAverageSensor(SensorEntity):
         self._day_offset = day_offset
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{unique_suffix}"
+        self._attr_entity_registry_enabled_default = enabled_default
         self._unsub_midnight = None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
@@ -135,4 +137,5 @@ class EkzAverageTomorrowSensor(_EkzDailyAverageSensor):
             day_offset=1,
             name="Average price tomorrow",
             unique_suffix="avg_tomorrow",
+            enabled_default=False,
         )

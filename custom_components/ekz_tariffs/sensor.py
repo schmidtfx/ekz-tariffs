@@ -24,7 +24,9 @@ from homeassistant.util import dt as dt_util
 from .api import TariffSlot
 from .const import AUTH_TYPE_OAUTH, DOMAIN
 from .coordinator import EmsLinkStatusCoordinator
+from .sensor_cheapest_hours import EkzHoursQuantileSensor
 from .sensor_daily_average import EkzAverageTodaySensor, EkzAverageTomorrowSensor
+from .sensor_in_window import EkzInConsecutiveWindowSensor
 from .sensor_window_extreme import EkzWindowExtremeSensor
 from .utils import FusedEvent, fuse_slots
 
@@ -402,6 +404,81 @@ async def async_setup_entry(
         ),
         EkzAverageTomorrowSensor(
             hass, entry.entry_id, data["tariff_name"], data["coordinator"]
+        ),
+        # Quantile sensors for cheap hours
+        EkzHoursQuantileSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            quantile=0.25,
+            mode="cheapest",
+        ),
+        EkzHoursQuantileSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            quantile=0.10,
+            mode="cheapest",
+        ),
+        EkzHoursQuantileSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            quantile=0.50,
+            mode="cheapest",
+        ),
+        # Quantile sensors for expensive hours
+        EkzHoursQuantileSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            quantile=0.25,
+            mode="most_expensive",
+        ),
+        EkzHoursQuantileSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            quantile=0.10,
+            mode="most_expensive",
+        ),
+        # Consecutive window sensors - detect if currently in the cheapest/most expensive consecutive window
+        EkzInConsecutiveWindowSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            window_hours=2,
+            mode="cheapest",
+        ),
+        EkzInConsecutiveWindowSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            window_hours=4,
+            mode="cheapest",
+        ),
+        EkzInConsecutiveWindowSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            window_hours=2,
+            mode="most_expensive",
+        ),
+        EkzInConsecutiveWindowSensor(
+            hass,
+            entry.entry_id,
+            data["tariff_name"],
+            data["coordinator"],
+            window_hours=4,
+            mode="most_expensive",
         ),
     ]
 
