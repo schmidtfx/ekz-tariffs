@@ -238,7 +238,7 @@ class EkzEmsLinkStatusSensor(BinarySensorEntity):
             return None
 
         result = self._coordinator.data
-        return result.get("error") or result.get("link_status") == "link_required"
+        return not (result.get("error") or result.get("link_status") == "link_required")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
