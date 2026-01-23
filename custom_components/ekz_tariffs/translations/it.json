@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "auth_type": {
+        "title": "Metodo di autenticazione",
+        "description": "Scegli come desideri accedere ai dati tariffari EKZ",
+        "data": {
+          "auth_type": "Tipo di autenticazione"
+        }
+      },
+      "public_config": {
+        "title": "Configurazione API pubblica",
+        "description": "Seleziona il tuo piano tariffario",
+        "data": {
+          "tariff_name": "Nome tariffa"
+        }
+      },
+      "pick_implementation": {
+        "title": "Collega account EKZ"
+      },
+      "ems_linking": {
+        "title": "Collega account EMS",
+        "description": "Per ricevere dati tariffari personalizzati, devi collegare questa istanza di Home Assistant con il tuo account EKZ.\n\n**Segui questi passaggi:**\n\n1. Apri questo URL in una nuova scheda: [{truncated_url}]({linking_url})\n2. Approva il collegamento sul portale EKZ\n3. Dopo aver completato il collegamento, **torna qui manualmente** e clicca su 'Invia' per continuare\n\nNota: La pagina EKZ potrebbe reindirizzarti, ma devi tornare a questa pagina per completare la configurazione."
+      }
+    },
+    "error": {
+      "already_configured": "Questa configurazione è già impostata",
+      "invalid_auth": "Autenticazione non valida",
+      "cannot_connect": "Impossibile connettersi all'API EKZ",
+      "unknown": "Si è verificato un errore imprevisto"
+    },
+    "abort": {
+      "already_configured": "Questa configurazione è già impostata",
+      "oauth_error": "Autenticazione OAuth non riuscita"
+    }
+  },
+  "application_credentials": {
+    "description": "Per configurare le credenziali OAuth per EKZ:\n\n1. Contatta EKZ per richiedere le credenziali OAuth per l'API myEKZ\n2. Compila il loro modulo di richiesta OAuth\n3. Una volta approvato, riceverai un ID client e un segreto client\n4. Inserisci queste credenziali qui\n\nPer ulteriori informazioni, visita: [Configurazione OAuth EKZ]({oauth_info_url})"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "auth_type": {
+        "title": "Authentifizierungsmethode",
+        "description": "Wählen Sie, wie Sie auf EKZ-Tarifdaten zugreifen möchten",
+        "data": {
+          "auth_type": "Authentifizierungstyp"
+        }
+      },
+      "public_config": {
+        "title": "Öffentliche API-Konfiguration",
+        "description": "Wählen Sie Ihren Tarifplan",
+        "data": {
+          "tariff_name": "Tarifname"
+        }
+      },
+      "pick_implementation": {
+        "title": "EKZ-Konto verknüpfen"
+      },
+      "ems_linking": {
+        "title": "EMS-Konto verknüpfen",
+        "description": "Um personalisierte Tarifdaten zu erhalten, müssen Sie diese Home Assistant-Instanz mit Ihrem EKZ-Konto verknüpfen.\n\n**Bitte befolgen Sie diese Schritte:**\n\n1. Öffnen Sie diese URL in einem neuen Tab: [{truncated_url}]({linking_url})\n2. Bestätigen Sie die Verknüpfung im EKZ-Portal\n3. Nach Abschluss der Verknüpfung kehren Sie **manuell hierher zurück** und klicken Sie auf 'Absenden', um fortzufahren\n\nHinweis: Die EKZ-Seite leitet Sie möglicherweise weiter, aber Sie müssen zu dieser Seite zurückkehren, um die Einrichtung abzuschließen."
+      }
+    },
+    "error": {
+      "already_configured": "Diese Konfiguration ist bereits eingerichtet",
+      "invalid_auth": "Ungültige Authentifizierung",
+      "cannot_connect": "Verbindung zur EKZ-API fehlgeschlagen",
+      "unknown": "Unerwarteter Fehler aufgetreten"
+    },
+    "abort": {
+      "already_configured": "Diese Konfiguration ist bereits eingerichtet",
+      "oauth_error": "OAuth-Authentifizierung fehlgeschlagen"
+    }
+  },
+  "application_credentials": {
+    "description": "Um OAuth-Anmeldedaten für EKZ einzurichten:\n\n1. Kontaktieren Sie EKZ, um OAuth-Anmeldedaten für die myEKZ-API anzufordern\n2. Füllen Sie deren OAuth-Antragsformular aus\n3. Nach der Genehmigung erhalten Sie eine Client-ID und ein Client-Secret\n4. Geben Sie diese Anmeldedaten hier ein\n\nWeitere Informationen finden Sie unter: [EKZ OAuth-Einrichtung]({oauth_info_url})"
+  }
+}
