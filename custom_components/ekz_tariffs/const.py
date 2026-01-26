@@ -6,6 +6,7 @@ PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.CALENDAR, Platform.SENSOR
 CONF_TARIFF_NAME = "tariff_name"
 CONF_AUTH_TYPE = "auth_type"
 CONF_EMS_INSTANCE_ID = "ems_instance_id"
+CONF_INCLUDE_VAT = "include_vat"
 AUTH_TYPE_PUBLIC = "public"
 AUTH_TYPE_OAUTH = "oauth"
 DEFAULT_TARIFF_NAME = "400D"
@@ -33,3 +34,5 @@ EVENT_TARIFF_START = "tariff_start"
 
 SERVICE_REFRESH = "refresh"
 SERVICE_CHECK_EMS_LINK_STATUS = "check_ems_link_status"
+
+VAT_RATE = 0.081

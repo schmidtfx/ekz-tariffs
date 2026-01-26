@@ -12,7 +12,8 @@
         "title": "Public API Configuration",
         "description": "Select your tariff plan",
         "data": {
-          "tariff_name": "Tariff Name"
+          "tariff_name": "Tariff Name",
+          "include_vat": "Include VAT (8.1%)"
         }
       },
       "pick_implementation": {
@@ -21,6 +22,13 @@
       "ems_linking": {
         "title": "Link EMS Account",
         "description": "To receive personalized tariff data, you need to link this Home Assistant instance with your EKZ account.\n\n**Please follow these steps:**\n\n1. Open this URL in a new tab: [{truncated_url}]({linking_url})\n2. Approve the linking on the EKZ portal\n3. After completing the linking, **return here manually** and click 'Submit' to continue\n\nNote: The EKZ page may redirect you away, but you need to come back to this page to finish the setup."
+      },
+      "ems_linking_complete": {
+        "title": "Configure Customer Tariff Options",
+        "description": "Configure how you want to display your customer-specific tariff prices",
+        "data": {
+          "include_vat": "Include VAT (8.1%)"
+        }
       }
     },
     "error": {
@@ -32,6 +40,17 @@
     "abort": {
       "already_configured": "This configuration is already set up",
       "oauth_error": "OAuth authentication failed"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure EKZ Tariffs Options",
+        "description": "Adjust settings for your tariff integration",
+        "data": {
+          "include_vat": "Include VAT (8.1%)"
+        }
+      }
     }
   },
   "application_credentials": {
@@ -113,6 +132,9 @@
     "binary_sensor": {
       "ems_link_status": {
         "name": "EMS link status"
+      },
+      "vat_included": {
+        "name": "VAT included"
       }
     },
     "button": {

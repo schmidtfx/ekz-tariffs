@@ -15,6 +15,7 @@ from .const import (
     API_EMS_LINK_STATUS_PATH,
     API_TARIFFS_PATH,
     INTEGRATED_PREFIX,
+    VAT_RATE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class EkzTariffsApi:
         tariff_name: str,
         start: datetime,
         end: datetime,
+        incl_vat: bool = False,
     ) -> list[TariffSlot]:
         """Fetch tariff slots from EKZ public API for time range."""
         start = dt_util.as_local(start)
@@ -71,9 +73,11 @@ class EkzTariffsApi:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json()
 
-        return self._parse_tariff_slots(data)
+        return self._parse_tariff_slots(data, incl_vat=incl_vat)
 
-    def _parse_tariff_slots(self, data: dict[str, Any]) -> list[TariffSlot]:
+    def _parse_tariff_slots(
+        self, data: dict[str, Any], incl_vat: bool = False
+    ) -> list[TariffSlot]:
         """Parse tariff slots from API response."""
         slots: list[TariffSlot] = []
         for item in data.get("prices", []):
@@ -85,6 +89,8 @@ class EkzTariffsApi:
             for comp in item.get("integrated", []):
                 if comp.get("unit") == "CHF_kWh":
                     price_val = comp.get("value")
+                    if incl_vat:
+                        price_val = price_val * (1 + VAT_RATE)
                     break
 
             if price_val is None:
@@ -121,6 +127,7 @@ class EkzTariffsOAuthApi:
         ems_instance_id: str,
         start: datetime,
         end: datetime,
+        incl_vat: bool = False,
     ) -> list[TariffSlot]:
         """Fetch customer-specific tariffs from authenticated API."""
         start = dt_util.as_local(start)
@@ -159,6 +166,8 @@ class EkzTariffsOAuthApi:
             for comp in item.get("integrated", []):
                 if comp.get("unit") == "CHF_kWh":
                     price_val = comp.get("value")
+                    if incl_vat:
+                        price_val = price_val * (1 + VAT_RATE)
                     break
 
             if price_val is None:

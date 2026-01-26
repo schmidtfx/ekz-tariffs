@@ -16,6 +16,7 @@ from .const import (
     AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
     CONF_EMS_INSTANCE_ID,
+    CONF_INCLUDE_VAT,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
@@ -86,6 +87,7 @@ class OAuth2FlowHandler(
                     vol.Required(CONF_TARIFF_NAME, default=DEFAULT_TARIFF_NAME): vol.In(
                         TARIFF_CHOICES
                     ),
+                    vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
                 }
             )
             return self.async_show_form(step_id="public_config", data_schema=schema)
@@ -100,6 +102,7 @@ class OAuth2FlowHandler(
             data={
                 CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
                 CONF_TARIFF_NAME: user_input[CONF_TARIFF_NAME],
+                CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
             },
         )
 
@@ -211,7 +214,17 @@ class OAuth2FlowHandler(
     async def async_step_ems_linking_complete(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Complete the config flow after EMS linking."""
+        """Complete the config flow after EMS linking - ask for VAT preference."""
+        if user_input is None:
+            schema = vol.Schema(
+                {
+                    vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
+                }
+            )
+            return self.async_show_form(
+                step_id="ems_linking_complete", data_schema=schema
+            )
+
         # Create the config entry
         await self.async_set_unique_id(f"{DOMAIN}_oauth")
         self._abort_if_unique_id_configured()
@@ -221,6 +234,7 @@ class OAuth2FlowHandler(
             data={
                 CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
                 CONF_EMS_INSTANCE_ID: self.ems_instance_id,
+                CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
                 **self.oauth_data,
             },
         )
@@ -230,3 +244,47 @@ class EkzTariffsConfigFlow(OAuth2FlowHandler, config_entries.ConfigFlow, domain=
     """Handle a config flow for EKZ Tariffs."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> EkzTariffsOptionsFlow:
+        """Get the options flow for this handler."""
+        return EkzTariffsOptionsFlow(config_entry)
+
+
+class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for EKZ Tariffs integration."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        super().__init__()
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            # Update the config entry
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data={
+                    **self.config_entry.data,
+                    CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
+                },
+            )
+            # Reload the integration to apply changes
+            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        # Get current value from config entry
+        current_include_vat = self.config_entry.data.get(CONF_INCLUDE_VAT, False)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
+            }
+        )
+
+        return self.async_show_form(step_id="init", data_schema=schema)

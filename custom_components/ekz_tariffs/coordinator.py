@@ -52,7 +52,12 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
     """Coordinator for public API (requires tariff name)."""
 
     def __init__(
-        self, hass: HomeAssistant, api: EkzTariffsApi, tariff_name: str, store: Store
+        self,
+        hass: HomeAssistant,
+        api: EkzTariffsApi,
+        tariff_name: str,
+        store: Store,
+        incl_vat: bool = False,
     ):
         super().__init__(
             hass,
@@ -64,6 +69,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._api = api
         self._tariff_name = tariff_name
         self._store = store
+        self._incl_vat = incl_vat
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -80,6 +86,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 tariff_name=self._tariff_name,
                 start=start,
                 end=end,
+                incl_vat=self._incl_vat,
             )
             await self._store.async_save({"slots": slots_to_json(slots)})
             return slots
@@ -96,6 +103,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         api: EkzTariffsOAuthApi,
         store: Store,
         ems_instance_id: str,
+        incl_vat: bool = False,
     ):
         super().__init__(
             hass,
@@ -107,6 +115,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._api = api
         self._store = store
         self._ems_instance_id = ems_instance_id
+        self._incl_vat = incl_vat
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -123,6 +132,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 ems_instance_id=self._ems_instance_id,
                 start=start,
                 end=end,
+                incl_vat=self._incl_vat,
             )
             await self._store.async_save({"slots": slots_to_json(slots)})
             return slots

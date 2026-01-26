@@ -12,7 +12,8 @@
         "title": "Öffentliche API-Konfiguration",
         "description": "Wählen Sie Ihren Tarifplan",
         "data": {
-          "tariff_name": "Tarifname"
+          "tariff_name": "Tarifname",
+          "include_vat": "MwSt. einbeziehen (8,1%)"
         }
       },
       "pick_implementation": {
@@ -21,6 +22,13 @@
       "ems_linking": {
         "title": "EMS-Konto verknüpfen",
         "description": "Um personalisierte Tarifdaten zu erhalten, müssen Sie diese Home Assistant-Instanz mit Ihrem EKZ-Konto verknüpfen.\n\n**Bitte befolgen Sie diese Schritte:**\n\n1. Öffnen Sie diese URL in einem neuen Tab: [{truncated_url}]({linking_url})\n2. Bestätigen Sie die Verknüpfung im EKZ-Portal\n3. Nach Abschluss der Verknüpfung kehren Sie **manuell hierher zurück** und klicken Sie auf 'Absenden', um fortzufahren\n\nHinweis: Die EKZ-Seite leitet Sie möglicherweise weiter, aber Sie müssen zu dieser Seite zurückkehren, um die Einrichtung abzuschließen."
+      },
+      "ems_linking_complete": {
+        "title": "Kundentarif-Optionen konfigurieren",
+        "description": "Konfigurieren Sie, wie Sie Ihre kundenspezifischen Tarifpreise anzeigen möchten",
+        "data": {
+          "include_vat": "MwSt. einbeziehen (8,1%)"
+        }
       }
     },
     "error": {
@@ -32,6 +40,17 @@
     "abort": {
       "already_configured": "Diese Konfiguration ist bereits eingerichtet",
       "oauth_error": "OAuth-Authentifizierung fehlgeschlagen"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EKZ Tarife Optionen konfigurieren",
+        "description": "Einstellungen für Ihre Tarifintegration anpassen",
+        "data": {
+          "include_vat": "MwSt. einbeziehen (8,1%)"
+        }
+      }
     }
   },
   "application_credentials": {
@@ -113,6 +132,9 @@
     "binary_sensor": {
       "ems_link_status": {
         "name": "EMS-Verknüpfungsstatus"
+      },
+      "vat_included": {
+        "name": "MwSt. inbegriffen"
       }
     },
     "button": {

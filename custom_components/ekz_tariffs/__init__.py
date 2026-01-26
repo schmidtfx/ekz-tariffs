@@ -16,6 +16,7 @@ from .const import (
     AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
     CONF_EMS_INSTANCE_ID,
+    CONF_INCLUDE_VAT,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
@@ -63,7 +64,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         session = async_get_clientsession(hass)
         api = EkzTariffsOAuthApi(oauth_session, session)
-        coordinator = EkzTariffsOAuthCoordinator(hass, api, store, ems_instance_id)
+        include_vat = entry.data.get(CONF_INCLUDE_VAT, False)
+        coordinator = EkzTariffsOAuthCoordinator(
+            hass, api, store, ems_instance_id, incl_vat=include_vat
+        )
 
         # Create EMS link status coordinator
         ems_coordinator = EmsLinkStatusCoordinator(hass, api, ems_instance_id)
@@ -113,9 +117,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         # Public API setup
         tariff_name = entry.data.get(CONF_TARIFF_NAME, DEFAULT_TARIFF_NAME)
+        include_vat = entry.data.get(CONF_INCLUDE_VAT, False)
         session = async_get_clientsession(hass)
         api = EkzTariffsApi(session)
-        coordinator = EkzTariffsCoordinator(hass, api, tariff_name, store)
+        coordinator = EkzTariffsCoordinator(
+            hass, api, tariff_name, store, incl_vat=include_vat
+        )
 
         device_name = f"EKZ Tariff {tariff_name}"
         device = device_registry.async_get_or_create(

@@ -199,6 +199,40 @@ class EkzNextChangeSensor(SensorEntity):
         return attrs
 
 
+class EkzVatIncludedSensor(BinarySensorEntity):
+    """Binary sensor showing if VAT is included in prices."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:percent"
+
+    def __init__(self, hass: HomeAssistant, entry_id: str, include_vat: bool) -> None:
+        self.hass = hass
+        self._entry_id = entry_id
+        self._include_vat = include_vat
+        self._attr_unique_id = f"{entry_id}_vat_included"
+        self._attr_name = "VAT included"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if VAT is included."""
+        return self._include_vat
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        from .const import VAT_RATE
+
+        return {
+            "vat_rate": f"{VAT_RATE * 100:.1f}%",
+            "vat_multiplier": 1 + VAT_RATE if self._include_vat else 1.0,
+        }
+
+
 class EkzEmsLinkStatusSensor(BinarySensorEntity):
     """Binary sensor showing EMS linking status for OAuth configurations."""
 
@@ -498,6 +532,12 @@ async def async_setup_entry(
         day_offset=1,
         suffix="tomorrow",
     )
+
+    # Add VAT included diagnostic sensor
+    from .const import CONF_INCLUDE_VAT
+
+    include_vat = entry.data.get(CONF_INCLUDE_VAT, False)
+    entities.append(EkzVatIncludedSensor(hass, entry.entry_id, include_vat))
 
     # Add EMS link status and linking URL sensors for OAuth configurations
     if data.get("auth_type") == AUTH_TYPE_OAUTH:

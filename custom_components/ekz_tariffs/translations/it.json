@@ -12,7 +12,8 @@
         "title": "Configurazione API pubblica",
         "description": "Seleziona il tuo piano tariffario",
         "data": {
-          "tariff_name": "Nome tariffa"
+          "tariff_name": "Nome tariffa",
+          "include_vat": "Includi IVA (8,1%)"
         }
       },
       "pick_implementation": {
@@ -21,6 +22,13 @@
       "ems_linking": {
         "title": "Collega account EMS",
         "description": "Per ricevere dati tariffari personalizzati, devi collegare questa istanza di Home Assistant con il tuo account EKZ.\n\n**Segui questi passaggi:**\n\n1. Apri questo URL in una nuova scheda: [{truncated_url}]({linking_url})\n2. Approva il collegamento sul portale EKZ\n3. Dopo aver completato il collegamento, **torna qui manualmente** e clicca su 'Invia' per continuare\n\nNota: La pagina EKZ potrebbe reindirizzarti, ma devi tornare a questa pagina per completare la configurazione."
+      },
+      "ems_linking_complete": {
+        "title": "Configura opzioni tariffa cliente",
+        "description": "Configura come desideri visualizzare i prezzi tariffari specifici del cliente",
+        "data": {
+          "include_vat": "Includi IVA (8,1%)"
+        }
       }
     },
     "error": {
@@ -32,6 +40,17 @@
     "abort": {
       "already_configured": "Questa configurazione è già impostata",
       "oauth_error": "Autenticazione OAuth non riuscita"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configura opzioni tariffe EKZ",
+        "description": "Regola le impostazioni per la tua integrazione tariffaria",
+        "data": {
+          "include_vat": "Includi IVA (8,1%)"
+        }
+      }
     }
   },
   "application_credentials": {
@@ -113,6 +132,9 @@
     "binary_sensor": {
       "ems_link_status": {
         "name": "Stato collegamento EMS"
+      },
+      "vat_included": {
+        "name": "IVA inclusa"
       }
     },
     "button": {
