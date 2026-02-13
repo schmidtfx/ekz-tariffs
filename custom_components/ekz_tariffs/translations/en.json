@@ -13,7 +13,8 @@
         "description": "Select your tariff plan",
         "data": {
           "tariff_name": "Tariff Name",
-          "include_vat": "Include VAT (8.1%)"
+          "include_vat": "Include VAT (8.1%)",
+          "include_regional_fees": "Include Regional Fees (0.0016 CHF/kWh for Canton ZH)"
         }
       },
       "pick_implementation": {
@@ -27,7 +28,8 @@
         "title": "Configure Customer Tariff Options",
         "description": "Configure how you want to display your customer-specific tariff prices",
         "data": {
-          "include_vat": "Include VAT (8.1%)"
+          "include_vat": "Include VAT (8.1%)",
+          "include_regional_fees": "Include Regional Fees (0.0016 CHF/kWh for Canton ZH)"
         }
       }
     },
@@ -48,7 +50,8 @@
         "title": "Configure EKZ Tariffs Options",
         "description": "Adjust settings for your tariff integration",
         "data": {
-          "include_vat": "Include VAT (8.1%)"
+          "include_vat": "Include VAT (8.1%)",
+          "include_regional_fees": "Include Regional Fees (0.0016 CHF/kWh for Canton ZH)"
         }
       }
     }

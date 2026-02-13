@@ -13,7 +13,8 @@
         "description": "Wählen Sie Ihren Tarifplan",
         "data": {
           "tariff_name": "Tarifname",
-          "include_vat": "MwSt. einbeziehen (8,1%)"
+          "include_vat": "MwSt. einbeziehen (8,1%)",
+          "include_regional_fees": "Regionale Gebühren einbeziehen (0,0016 CHF/kWh für Kanton ZH)"
         }
       },
       "pick_implementation": {
@@ -27,7 +28,8 @@
         "title": "Kundentarif-Optionen konfigurieren",
         "description": "Konfigurieren Sie, wie Sie Ihre kundenspezifischen Tarifpreise anzeigen möchten",
         "data": {
-          "include_vat": "MwSt. einbeziehen (8,1%)"
+          "include_vat": "MwSt. einbeziehen (8,1%)",
+          "include_regional_fees": "Regionale Gebühren einbeziehen (0,0016 CHF/kWh für Kanton ZH)"
         }
       }
     },
@@ -48,7 +50,8 @@
         "title": "EKZ Tarife Optionen konfigurieren",
         "description": "Einstellungen für Ihre Tarifintegration anpassen",
         "data": {
-          "include_vat": "MwSt. einbeziehen (8,1%)"
+          "include_vat": "MwSt. einbeziehen (8,1%)",
+          "include_regional_fees": "Regionale Gebühren einbeziehen (0,0016 CHF/kWh für Kanton ZH)"
         }
       }
     }

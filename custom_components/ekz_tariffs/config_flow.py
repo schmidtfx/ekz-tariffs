@@ -16,6 +16,7 @@ from .const import (
     AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
     CONF_EMS_INSTANCE_ID,
+    CONF_INCLUDE_REGIONAL_FEES,
     CONF_INCLUDE_VAT,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
@@ -88,6 +89,7 @@ class OAuth2FlowHandler(
                         TARIFF_CHOICES
                     ),
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
+                    vol.Optional(CONF_INCLUDE_REGIONAL_FEES, default=False): bool,
                 }
             )
             return self.async_show_form(step_id="public_config", data_schema=schema)
@@ -103,6 +105,7 @@ class OAuth2FlowHandler(
                 CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
                 CONF_TARIFF_NAME: user_input[CONF_TARIFF_NAME],
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
+                CONF_INCLUDE_REGIONAL_FEES: user_input.get(CONF_INCLUDE_REGIONAL_FEES, False),
             },
         )
 
@@ -219,6 +222,7 @@ class OAuth2FlowHandler(
             schema = vol.Schema(
                 {
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
+                    vol.Optional(CONF_INCLUDE_REGIONAL_FEES, default=False): bool,
                 }
             )
             return self.async_show_form(
@@ -235,6 +239,7 @@ class OAuth2FlowHandler(
                 CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
                 CONF_EMS_INSTANCE_ID: self.ems_instance_id,
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
+                CONF_INCLUDE_REGIONAL_FEES: user_input.get(CONF_INCLUDE_REGIONAL_FEES, False),
                 **self.oauth_data,
             },
         )
@@ -272,18 +277,21 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
                 data={
                     **self.config_entry.data,
                     CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
+                    CONF_INCLUDE_REGIONAL_FEES: user_input[CONF_INCLUDE_REGIONAL_FEES],
                 },
             )
             # Reload the integration to apply changes
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
-        # Get current value from config entry
+        # Get current values from config entry
         current_include_vat = self.config_entry.data.get(CONF_INCLUDE_VAT, False)
+        current_include_regional_fees = self.config_entry.data.get(CONF_INCLUDE_REGIONAL_FEES, False)
 
         schema = vol.Schema(
             {
                 vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
+                vol.Optional(CONF_INCLUDE_REGIONAL_FEES, default=current_include_regional_fees): bool,
             }
         )
 
