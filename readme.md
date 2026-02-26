@@ -60,9 +60,14 @@ Select this option to authenticate with your EKZ customer account and automatica
 
 **OAuth Setup:**
 
+📖 **[Complete OAuth Setup Guide](OAUTH_SETUP.md)** - Comprehensive documentation with detailed instructions, troubleshooting, and technical details.
+
+**Quick Start:**
+
 1. **Request OAuth Credentials from EKZ:**
-   - Contact EKZ to request OAuth API access
-   - Fill out their OAuth application form
+   - Contact EKZ via their [official form](https://forms.office.com/Pages/ResponsePage.aspx?id=XqcHk8gVZkSibazU0UTTpczKnf9BpR1ErQgdpIRN1u1UNThURkhZTjI1TjhLV1pLUzJNR1M2OThWTiQlQCN0PWcu&r12784a0e65bd412da19fd29d26f2e4fc=https%3A%2F%2F)
+   - Request OAuth credentials for API access
+   - Provide your redirect URI: `https://my.home-assistant.io/redirect/oauth`
    - Wait for approval and receive your Client ID and Client Secret
 
 2. **Configure Application Credentials in Home Assistant:**
@@ -78,19 +83,15 @@ Select this option to authenticate with your EKZ customer account and automatica
    - Search for "EKZ Dynamic Tariffs"
    - Choose "Customer Account (OAuth - personalized tariffs)"
    - Follow the OAuth flow to authenticate with your myEKZ account
-   - Authorize Home Assistant to access your tariff data
+   - Complete the EMS linking process (one-time setup)
 
 **OAuth Benefits:**
-- Automatically retrieves tariffs specific to your metering point
-- No need to manually select tariff plans
-- Access to additional customer-specific API endpoints
+- ✅ Automatically retrieves tariffs specific to your metering point
+- ✅ No need to manually select tariff plans
+- ✅ Access to customer-specific API endpoints
+- ✅ Stays synchronized with tariff assignment changes
 
-**OAuth Technical Details:**
-- Authorization URL: `https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/auth`
-- Token URL: `https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token`
-- Scopes: `openid`, `offline_access`
-- Access tokens valid for 30 minutes
-- Refresh tokens valid for 30 days (up to 10 usages)
+**Need Help?** See the [OAuth Setup Documentation](OAUTH_SETUP.md) for troubleshooting, technical details, and advanced configuration.
 
 ## Sensors
 
