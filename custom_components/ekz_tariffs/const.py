@@ -7,6 +7,15 @@ CONF_TARIFF_NAME = "tariff_name"
 CONF_AUTH_TYPE = "auth_type"
 CONF_EMS_INSTANCE_ID = "ems_instance_id"
 CONF_INCLUDE_VAT = "include_vat"
+CONF_REGIONAL_FEE = "regional_fee"
+REGIONAL_FEE_NONE = "none"
+REGIONAL_FEE_CHOICES = [
+    "none",
+    "regional_fees_lt500MWh_ZH",
+    "regional_fees_gt500MWh_ZH",
+    "regional_fees_Menzingen",
+    "regional_fees_Einsiedeln",
+]
 AUTH_TYPE_PUBLIC = "public"
 AUTH_TYPE_OAUTH = "oauth"
 DEFAULT_TARIFF_NAME = "400D"

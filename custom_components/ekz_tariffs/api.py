@@ -15,6 +15,7 @@ from .const import (
     API_EMS_LINK_STATUS_PATH,
     API_TARIFFS_PATH,
     INTEGRATED_PREFIX,
+    REGIONAL_FEE_NONE,
     VAT_RATE,
 )
 
@@ -56,6 +57,7 @@ class EkzTariffsApi:
         start: datetime,
         end: datetime,
         incl_vat: bool = False,
+        regional_fee: str | None = None,
     ) -> list[TariffSlot]:
         """Fetch tariff slots from EKZ public API for time range."""
         start = dt_util.as_local(start)
@@ -73,7 +75,54 @@ class EkzTariffsApi:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json()
 
-        return self._parse_tariff_slots(data, incl_vat=incl_vat)
+        slots = self._parse_tariff_slots(data, incl_vat=incl_vat)
+
+        if regional_fee and regional_fee != REGIONAL_FEE_NONE:
+            regional_price = await self._fetch_regional_fee_price(
+                regional_fee, start, end
+            )
+            if regional_price is not None:
+                if incl_vat:
+                    regional_price = regional_price * (1 + VAT_RATE)
+                slots = [
+                    TariffSlot(
+                        start=s.start,
+                        end=s.end,
+                        price_chf_per_kwh=round(
+                            s.price_chf_per_kwh + regional_price, 4
+                        ),
+                    )
+                    for s in slots
+                ]
+
+        return slots
+
+    async def _fetch_regional_fee_price(
+        self, fee_name: str, start: datetime, end: datetime
+    ) -> float | None:
+        """Fetch a regional fee tariff and return its CHF_kWh price."""
+        params = {
+            "tariff_name": fee_name,
+            "start_timestamp": start.isoformat(timespec="seconds"),
+            "end_timestamp": end.isoformat(timespec="seconds"),
+        }
+        url = f"{API_BASE}{API_TARIFFS_PATH}"
+
+        try:
+            async with self._session.get(url, params=params, timeout=30) as resp:
+                resp.raise_for_status()
+                data: dict[str, Any] = await resp.json()
+        except Exception:
+            _LOGGER.exception("Failed to fetch regional fee %s", fee_name)
+            return None
+
+        # Regional fee responses use the "regional_fees" key instead of "integrated"
+        for item in data.get("prices", []):
+            for comp in item.get("regional_fees", []):
+                if comp.get("unit") == "CHF_kWh":
+                    return float(comp.get("value", 0))
+
+        return None
 
     def _parse_tariff_slots(
         self, data: dict[str, Any], incl_vat: bool = False
@@ -100,7 +149,7 @@ class EkzTariffsApi:
                 TariffSlot(
                     start=dt_util.as_local(start_ts),
                     end=dt_util.as_local(end_ts),
-                    price_chf_per_kwh=float(price_val),
+                    price_chf_per_kwh=round(float(price_val), 4),
                 )
             )
 
@@ -128,6 +177,7 @@ class EkzTariffsOAuthApi:
         start: datetime,
         end: datetime,
         incl_vat: bool = False,
+        regional_fee: str | bool | None = None,
     ) -> list[TariffSlot]:
         """Fetch customer-specific tariffs from authenticated API."""
         start = dt_util.as_local(start)
@@ -155,7 +205,9 @@ class EkzTariffsOAuthApi:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json()
 
-        # Parse the response similar to public API
+        # Parse the response — /customerTariffs returns all tariff types
+        # (integrated, regional_fees, etc.) in one response when no
+        # tariff_type filter is given.
         slots: list[TariffSlot] = []
         for item in data.get("prices", []):
             start_ts = dt_util.parse_datetime(item["start_timestamp"])
@@ -166,18 +218,25 @@ class EkzTariffsOAuthApi:
             for comp in item.get("integrated", []):
                 if comp.get("unit") == "CHF_kWh":
                     price_val = comp.get("value")
-                    if incl_vat:
-                        price_val = price_val * (1 + VAT_RATE)
                     break
 
             if price_val is None:
                 continue
 
+            # Sum regional fees from the same response (no extra API call)
+            if regional_fee and regional_fee != REGIONAL_FEE_NONE:
+                for comp in item.get("regional_fees", []):
+                    if comp.get("unit") == "CHF_kWh":
+                        price_val += comp.get("value")
+
+            if incl_vat:
+                price_val = price_val * (1 + VAT_RATE)
+
             slots.append(
                 TariffSlot(
                     start=dt_util.as_local(start_ts),
                     end=dt_util.as_local(end_ts),
-                    price_chf_per_kwh=float(price_val),
+                    price_chf_per_kwh=round(float(price_val), 4),
                 )
             )
 

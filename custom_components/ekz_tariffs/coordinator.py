@@ -58,6 +58,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         tariff_name: str,
         store: Store,
         incl_vat: bool = False,
+        regional_fee: str | None = None,
     ):
         super().__init__(
             hass,
@@ -70,6 +71,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._tariff_name = tariff_name
         self._store = store
         self._incl_vat = incl_vat
+        self._regional_fee = regional_fee
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -87,6 +89,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 start=start,
                 end=end,
                 incl_vat=self._incl_vat,
+                regional_fee=self._regional_fee,
             )
             await self._store.async_save({"slots": slots_to_json(slots)})
             return slots
@@ -104,6 +107,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         store: Store,
         ems_instance_id: str,
         incl_vat: bool = False,
+        regional_fee: str | bool | None = None,
     ):
         super().__init__(
             hass,
@@ -116,6 +120,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._store = store
         self._ems_instance_id = ems_instance_id
         self._incl_vat = incl_vat
+        self._regional_fee = regional_fee
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -133,6 +138,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 start=start,
                 end=end,
                 incl_vat=self._incl_vat,
+                regional_fee=self._regional_fee,
             )
             await self._store.async_save({"slots": slots_to_json(slots)})
             return slots

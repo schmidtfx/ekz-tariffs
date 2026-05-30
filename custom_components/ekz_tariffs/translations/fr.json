@@ -13,7 +13,8 @@
         "description": "Sélectionnez votre plan tarifaire",
         "data": {
           "tariff_name": "Nom du tarif",
-          "include_vat": "Inclure la TVA (8,1%)"
+          "include_vat": "Inclure la TVA (8,1%)",
+          "regional_fee": "Redevance régionale"
         }
       },
       "pick_implementation": {
@@ -27,7 +28,8 @@
         "title": "Configurer les options de tarif client",
         "description": "Configurez comment vous souhaitez afficher vos prix tarifaires spécifiques au client",
         "data": {
-          "include_vat": "Inclure la TVA (8,1%)"
+          "include_vat": "Inclure la TVA (8,1%)",
+          "regional_fee": "Redevance régionale"
         }
       }
     },
@@ -48,7 +50,8 @@
         "title": "Configurer les options des tarifs EKZ",
         "description": "Ajuster les paramètres de votre intégration tarifaire",
         "data": {
-          "include_vat": "Inclure la TVA (8,1%)"
+          "include_vat": "Inclure la TVA (8,1%)",
+          "regional_fee": "Redevance régionale"
         }
       }
     }
