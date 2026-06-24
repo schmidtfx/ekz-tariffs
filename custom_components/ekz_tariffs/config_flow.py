@@ -91,9 +91,9 @@ class OAuth2FlowHandler(
                         TARIFF_CHOICES
                     ),
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
-                    vol.Optional(
-                        CONF_REGIONAL_FEE, default=REGIONAL_FEE_NONE
-                    ): vol.In(REGIONAL_FEE_CHOICES),
+                    vol.Optional(CONF_REGIONAL_FEE, default=REGIONAL_FEE_NONE): vol.In(
+                        REGIONAL_FEE_CHOICES
+                    ),
                 }
             )
             return self.async_show_form(step_id="public_config", data_schema=schema)
@@ -243,9 +243,7 @@ class OAuth2FlowHandler(
                 CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
                 CONF_EMS_INSTANCE_ID: self.ems_instance_id,
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
-                CONF_REGIONAL_FEE: user_input.get(
-                    CONF_REGIONAL_FEE, REGIONAL_FEE_NONE
-                ),
+                CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
                 **self.oauth_data,
             },
         )
@@ -301,8 +299,7 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
         # Public path: dropdown (user must select the right regional fee)
         if auth_type == AUTH_TYPE_OAUTH:
             regional_fee_default = bool(
-                current_regional_fee
-                and current_regional_fee != REGIONAL_FEE_NONE
+                current_regional_fee and current_regional_fee != REGIONAL_FEE_NONE
             )
             regional_fee_field = vol.Optional(
                 CONF_REGIONAL_FEE, default=regional_fee_default
