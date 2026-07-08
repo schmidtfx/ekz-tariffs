@@ -14,7 +14,7 @@ This document provides detailed information about setting up OAuth authenticatio
 
 ## Overview
 
-The EKZ Tariffs integration supports OAuth 2.0 authentication using the **OpenID Connect (OIDC) Authorization Code Flow** with confidential clients. This authentication method allows the integration to:
+The EKZ Tariffs integration supports OAuth 2.0 authentication using the **OpenID Connect (OIDC) Authorization Code Flow**, for both **confidential clients** (client_id + client_secret) and **public clients** (client_id only, using PKCE). This authentication method allows the integration to:
 
 - Retrieve personalized customer tariffs via the protected `/customerTariffs` endpoint
 - Automatically receive the correct tariffs for your specific metering point
@@ -44,7 +44,7 @@ Before you can use OAuth authentication with this integration, you need:
 
 2. **OAuth Client Credentials from EKZ**
    - `client_id` - Your unique client identifier
-   - `client_secret` - Your confidential client secret
+   - `client_secret` - Your confidential client secret (**only issued for confidential clients**; public/PKCE clients receive a `client_id` only)
    - These must be requested from EKZ (see below)
 
 3. **Home Assistant with Application Credentials Support**
@@ -138,6 +138,13 @@ The integration uses the **OAuth 2.0 Authorization Code Flow** as specified by E
 └─────────────────┘                                    └──────────────────┘
 ```
 
+**Note:** The diagram above shows the **confidential-client** token exchange
+(step 4). Public (PKCE) clients omit the `Authorization: Basic` header
+entirely and instead include `client_id` and `code_verifier` in the request
+body. Public clients also add `code_challenge`/`code_challenge_method=S256`
+to the authorization redirect in step 1. See
+[PKCE (Public Clients)](#pkce-public-clients) below for details.
+
 ### Key Components
 
 1. **Authorization Endpoint**
@@ -167,7 +174,7 @@ The integration uses the **OAuth 2.0 Authorization Code Flow** as specified by E
    - Select **"EKZ Dynamic Tariffs"** from the dropdown
    - Enter your credentials received from EKZ:
      - **Client ID**: Your `client_id` from EKZ
-     - **Client Secret**: Your `client_secret` from EKZ
+     - **Client Secret**: Your `client_secret` from EKZ (**leave this field blank if EKZ issued you a public/PKCE client** — the integration automatically detects this and uses PKCE instead of HTTP Basic authentication)
    - Click **Submit**
 
 3. **Verify Credentials Are Saved:**
@@ -234,9 +241,9 @@ After OAuth authentication, you must link your Home Assistant instance to your E
 
 The integration uses a **custom OAuth2 implementation** with the following key features:
 
-#### HTTP Basic Authentication
+#### HTTP Basic Authentication (Confidential Clients)
 
-Unlike standard OAuth implementations, EKZ requires client credentials to be sent via **HTTP Basic authentication** header:
+This applies only to confidential clients (those with a `client_secret`). Unlike standard OAuth implementations, EKZ requires confidential client credentials to be sent via **HTTP Basic authentication** header:
 
 ```python
 # Encode credentials as Base64
@@ -252,9 +259,27 @@ headers = {
 
 **Note:** The `client_id` and `client_secret` are NOT sent in the request body.
 
+#### PKCE (Public Clients)
+
+Public clients (registered with EKZ without a `client_secret`) authenticate
+using [PKCE](https://datatracker.ietf.org/doc/html/rfc7636) (Proof Key for
+Code Exchange) instead of a shared secret:
+
+- A random `code_verifier` is generated per authorization attempt.
+- Its SHA-256 hash (`code_challenge`, method `S256`) is sent on the
+  authorization redirect.
+- The original `code_verifier` is sent in the token exchange request body,
+  proving the token request comes from the same client that started the
+  flow — no client secret is ever needed.
+
+The integration reuses Home Assistant core's built-in
+`LocalOAuth2ImplementationWithPkce` helpers (`generate_code_verifier` /
+`compute_code_challenge`) for this rather than implementing PKCE crypto
+itself.
+
 #### Token Exchange
 
-**Authorization Code Grant:**
+**Authorization Code Grant (confidential client):**
 ```http
 POST https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token
 Authorization: Basic <base64(client_id:client_secret)>
@@ -263,6 +288,18 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=authorization_code&
 code=<authorization_code>&
 redirect_uri=<redirect_uri>
+```
+
+**Authorization Code Grant (public client, PKCE):**
+```http
+POST https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&
+code=<authorization_code>&
+redirect_uri=<redirect_uri>&
+client_id=<client_id>&
+code_verifier=<code_verifier>
 ```
 
 **Response:**
@@ -281,7 +318,7 @@ redirect_uri=<redirect_uri>
 
 #### Token Refresh
 
-**Refresh Token Grant:**
+**Refresh Token Grant (confidential client):**
 ```http
 POST https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token
 Authorization: Basic <base64(client_id:client_secret)>
@@ -289,6 +326,16 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token&
 refresh_token=<refresh_token>
+```
+
+**Refresh Token Grant (public client):**
+```http
+POST https://login.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&
+refresh_token=<refresh_token>&
+client_id=<client_id>
 ```
 
 The integration automatically refreshes tokens when needed using the stored refresh token.
