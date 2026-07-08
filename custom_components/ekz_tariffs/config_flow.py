@@ -12,19 +12,27 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import EkzTariffsOAuthApi
 from .const import (
+    AUTH_IMPL_PUBLIC_CLIENT,
     AUTH_TYPE_OAUTH,
     AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
+    CONF_CLIENT_ID,
     CONF_EMS_INSTANCE_ID,
     CONF_INCLUDE_VAT,
+    CONF_OAUTH_CLIENT_TYPE,
     CONF_REGIONAL_FEE,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
+    OAUTH2_AUTHORIZE,
     OAUTH2_SCOPES,
+    OAUTH2_TOKEN,
+    OAUTH_CLIENT_TYPE_CONFIDENTIAL,
+    OAUTH_CLIENT_TYPE_PUBLIC,
     REGIONAL_FEE_CHOICES,
     REGIONAL_FEE_NONE,
 )
+from .oauth_impl import EKZOAuth2Implementation
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,8 +85,67 @@ class OAuth2FlowHandler(
 
         if auth_type == AUTH_TYPE_PUBLIC:
             return await self.async_step_public_config()
-        else:
-            return await self.async_step_pick_implementation()
+        return await self.async_step_oauth_client_type()
+
+    async def async_step_oauth_client_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask whether EKZ issued a confidential or public (PKCE) OAuth client."""
+        if user_input is None:
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_OAUTH_CLIENT_TYPE,
+                        default=OAUTH_CLIENT_TYPE_CONFIDENTIAL,
+                    ): vol.In(
+                        {
+                            OAUTH_CLIENT_TYPE_CONFIDENTIAL: (
+                                "Confidential (Client ID + Client Secret)"
+                            ),
+                            OAUTH_CLIENT_TYPE_PUBLIC: (
+                                "Public / PKCE (Client ID only)"
+                            ),
+                        }
+                    ),
+                }
+            )
+            return self.async_show_form(step_id="oauth_client_type", data_schema=schema)
+
+        if user_input[CONF_OAUTH_CLIENT_TYPE] == OAUTH_CLIENT_TYPE_PUBLIC:
+            return await self.async_step_public_client_config()
+        return await self.async_step_pick_implementation()
+
+    async def async_step_public_client_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Collect a public-client Client ID and register a PKCE implementation.
+
+        Public clients have no client_secret, so Home Assistant's built-in
+        Application Credentials form (which enforces a non-empty secret) is
+        not usable. Instead we ask for the Client ID here and register the
+        OAuth2 implementation directly, then hand off to the standard OAuth
+        authorization step.
+        """
+        if user_input is None:
+            schema = vol.Schema({vol.Required(CONF_CLIENT_ID): str})
+            return self.async_show_form(
+                step_id="public_client_config", data_schema=schema
+            )
+
+        client_id = user_input[CONF_CLIENT_ID].strip()
+        self._public_client_id = client_id
+
+        impl = EKZOAuth2Implementation(
+            self.hass,
+            AUTH_IMPL_PUBLIC_CLIENT,
+            client_id,
+            "",
+            OAUTH2_AUTHORIZE,
+            OAUTH2_TOKEN,
+        )
+        config_entry_oauth2_flow.async_register_implementation(self.hass, DOMAIN, impl)
+        self.flow_impl = impl
+        return await self.async_step_auth()
 
     async def async_step_public_config(
         self, user_input: dict[str, Any] | None = None
@@ -237,15 +304,22 @@ class OAuth2FlowHandler(
         await self.async_set_unique_id(f"{DOMAIN}_oauth")
         self._abort_if_unique_id_configured()
 
+        entry_data = {
+            CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
+            CONF_EMS_INSTANCE_ID: self.ems_instance_id,
+            CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
+            CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
+            **self.oauth_data,
+        }
+        # Public-client flows must persist the client_id so the implementation
+        # can be re-registered on Home Assistant restart (it's not stored in
+        # Application Credentials, which requires a client_secret).
+        if getattr(self, "_public_client_id", None):
+            entry_data[CONF_CLIENT_ID] = self._public_client_id
+
         return self.async_create_entry(
             title="EKZ Customer Account",
-            data={
-                CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
-                CONF_EMS_INSTANCE_ID: self.ems_instance_id,
-                CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
-                CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
-                **self.oauth_data,
-            },
+            data=entry_data,
         )
 
 

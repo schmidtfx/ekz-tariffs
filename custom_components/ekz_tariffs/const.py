@@ -8,6 +8,11 @@ CONF_AUTH_TYPE = "auth_type"
 CONF_EMS_INSTANCE_ID = "ems_instance_id"
 CONF_INCLUDE_VAT = "include_vat"
 CONF_REGIONAL_FEE = "regional_fee"
+CONF_CLIENT_ID = "client_id"
+CONF_OAUTH_CLIENT_TYPE = "oauth_client_type"
+OAUTH_CLIENT_TYPE_CONFIDENTIAL = "confidential"
+OAUTH_CLIENT_TYPE_PUBLIC = "public"
+AUTH_IMPL_PUBLIC_CLIENT = f"{DOMAIN}_public_client"
 REGIONAL_FEE_NONE = "none"
 REGIONAL_FEE_CHOICES = [
     "none",

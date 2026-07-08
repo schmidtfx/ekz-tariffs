@@ -12,9 +12,11 @@ from homeassistant.helpers.event import async_track_time_change
 
 from .api import EkzTariffsApi, EkzTariffsOAuthApi
 from .const import (
+    AUTH_IMPL_PUBLIC_CLIENT,
     AUTH_TYPE_OAUTH,
     AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
+    CONF_CLIENT_ID,
     CONF_EMS_INSTANCE_ID,
     CONF_INCLUDE_VAT,
     CONF_REGIONAL_FEE,
@@ -23,6 +25,8 @@ from .const import (
     DOMAIN,
     FETCH_HOUR,
     FETCH_MINUTE,
+    OAUTH2_AUTHORIZE,
+    OAUTH2_TOKEN,
     PLATFORMS,
     REGIONAL_FEE_NONE,
     SERVICE_CHECK_EMS_LINK_STATUS,
@@ -33,6 +37,7 @@ from .coordinator import (
     EkzTariffsOAuthCoordinator,
     EmsLinkStatusCoordinator,
 )
+from .oauth_impl import EKZOAuth2Implementation
 from .storage import make_store, slots_from_json
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,7 +53,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Setup based on authentication type
     if auth_type == AUTH_TYPE_OAUTH:
-        # OAuth setup
+        # OAuth setup — public-client entries (PKCE, no client_secret) don't
+        # go through Application Credentials, so their implementation must be
+        # re-registered here on each startup from the stored client_id.
+        public_client_id = entry.data.get(CONF_CLIENT_ID)
+        if public_client_id:
+            config_entry_oauth2_flow.async_register_implementation(
+                hass,
+                DOMAIN,
+                EKZOAuth2Implementation(
+                    hass,
+                    AUTH_IMPL_PUBLIC_CLIENT,
+                    public_client_id,
+                    "",
+                    OAUTH2_AUTHORIZE,
+                    OAUTH2_TOKEN,
+                ),
+            )
+
         implementation = (
             await config_entry_oauth2_flow.async_get_config_entry_implementation(
                 hass, entry

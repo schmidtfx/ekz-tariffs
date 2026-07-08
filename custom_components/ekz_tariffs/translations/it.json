@@ -17,6 +17,20 @@
           "regional_fee": "Supplemento regionale"
         }
       },
+      "oauth_client_type": {
+        "title": "Tipo di client OAuth",
+        "description": "EKZ rilascia due tipi di client OAuth. Scegli quello corrispondente alle tue credenziali:\n\n- **Confidenziale** — hai ricevuto sia un Client ID sia un Client Secret.\n- **Pubblico / PKCE** — hai ricevuto solo un Client ID (nessun secret).",
+        "data": {
+          "oauth_client_type": "Tipo di client"
+        }
+      },
+      "public_client_config": {
+        "title": "Client OAuth pubblico",
+        "description": "Inserisci il Client ID fornito da EKZ. I client pubblici non hanno un Client Secret — l'integrazione usa PKCE al suo posto.",
+        "data": {
+          "client_id": "Client ID"
+        }
+      },
       "pick_implementation": {
         "title": "Collega account EKZ"
       },

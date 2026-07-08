@@ -17,6 +17,20 @@
           "regional_fee": "Regionale Abgabe"
         }
       },
+      "oauth_client_type": {
+        "title": "OAuth-Client-Typ",
+        "description": "EKZ vergibt zwei Arten von OAuth-Clients. Wählen Sie den passenden aus:\n\n- **Vertraulich (Confidential)** — Sie haben eine Client-ID und ein Client-Geheimnis erhalten.\n- **Öffentlich / PKCE (Public)** — Sie haben nur eine Client-ID erhalten (kein Geheimnis).",
+        "data": {
+          "oauth_client_type": "Client-Typ"
+        }
+      },
+      "public_client_config": {
+        "title": "Öffentlicher OAuth-Client",
+        "description": "Geben Sie die von EKZ vergebene Client-ID ein. Öffentliche Clients haben kein Client-Geheimnis — die Integration nutzt stattdessen PKCE.",
+        "data": {
+          "client_id": "Client-ID"
+        }
+      },
       "pick_implementation": {
         "title": "EKZ-Konto verknüpfen"
       },

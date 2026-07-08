@@ -17,6 +17,20 @@
           "regional_fee": "Regional fee surcharge"
         }
       },
+      "oauth_client_type": {
+        "title": "OAuth Client Type",
+        "description": "EKZ issues two kinds of OAuth clients. Pick the one that matches your credentials:\n\n- **Confidential** — you received both a Client ID and a Client Secret.\n- **Public / PKCE** — you received only a Client ID (no secret).",
+        "data": {
+          "oauth_client_type": "Client Type"
+        }
+      },
+      "public_client_config": {
+        "title": "Public OAuth Client",
+        "description": "Enter the Client ID issued by EKZ. Public clients don't have a Client Secret — the integration uses PKCE instead.",
+        "data": {
+          "client_id": "Client ID"
+        }
+      },
       "pick_implementation": {
         "title": "Link EKZ Account"
       },

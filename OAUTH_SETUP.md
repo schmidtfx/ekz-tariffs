@@ -174,8 +174,14 @@ to the authorization redirect in step 1. See
    - Select **"EKZ Dynamic Tariffs"** from the dropdown
    - Enter your credentials received from EKZ:
      - **Client ID**: Your `client_id` from EKZ
-     - **Client Secret**: Your `client_secret` from EKZ (**leave this field blank if EKZ issued you a public/PKCE client** — the integration automatically detects this and uses PKCE instead of HTTP Basic authentication)
+     - **Client Secret**: Your `client_secret` from EKZ
    - Click **Submit**
+
+> **Public / PKCE clients:** Home Assistant's Application Credentials form
+> requires a non-empty Client Secret and cannot be used for public
+> clients. Skip this step entirely and go straight to Part 2 below — the
+> integration's own config flow will ask you to choose "Public / PKCE"
+> and enter just your Client ID.
 
 3. **Verify Credentials Are Saved:**
    - You should see "EKZ Dynamic Tariffs" listed with a partially masked Client ID
@@ -193,7 +199,11 @@ to the authorization redirect in step 1. See
    - Select **"Customer Account (OAuth - personalized tariffs)"**
    - Click **Submit**
 
-3. **Complete OAuth Flow:**
+3. **Choose OAuth Client Type:**
+   - **Confidential** — pick this if EKZ issued you both a Client ID and a Client Secret. The integration will use the Application Credentials you registered in Part 1.
+   - **Public / PKCE** — pick this if EKZ issued you only a Client ID (no secret). On the next screen, enter the Client ID; the integration registers the OAuth implementation directly (no Application Credentials entry needed) and uses PKCE for the token exchange and refresh.
+
+4. **Complete OAuth Flow:**
    - You'll be redirected to the myEKZ login page
    - **Log in** with your myEKZ customer credentials (username/password)
    - **Review the permissions** requested by the integration:
@@ -201,7 +211,7 @@ to the authorization redirect in step 1. See
      - `offline_access` - Allows token refresh without re-login
    - Click **Authorize** or **Allow** to grant access
 
-4. **Return to Home Assistant:**
+5. **Return to Home Assistant:**
    - You'll be automatically redirected back to Home Assistant
    - The integration will complete the setup
    - You should see a success message

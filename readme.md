@@ -74,8 +74,10 @@ Select this option to authenticate with your EKZ customer account and automatica
    - Go to **Settings** ➤ **Devices & Services** ➤ **Application Credentials**
    - Click ➕ **Add Application Credential**
    - Select "EKZ Dynamic Tariffs"
-   - Enter your Client ID and Client Secret received from EKZ (leave Client Secret blank if EKZ issued you a public/PKCE client)
+   - Enter your Client ID and Client Secret received from EKZ
    - Click **Submit**
+
+   *If EKZ issued you a **public/PKCE client** (Client ID only, no secret), skip this step — the integration's own setup flow will ask you to choose "Public / PKCE" and enter just your Client ID.*
 
 3. **Add the Integration:**
    - Go to **Settings** ➤ **Devices & Services** ➤ **Integrations**
