@@ -13,7 +13,8 @@
         "description": "Seleziona il tuo piano tariffario",
         "data": {
           "tariff_name": "Nome tariffa",
-          "include_vat": "Includi IVA (8,1%)"
+          "include_vat": "Includi IVA (8,1%)",
+          "regional_fee": "Supplemento regionale"
         }
       },
       "pick_implementation": {
@@ -27,7 +28,8 @@
         "title": "Configura opzioni tariffa cliente",
         "description": "Configura come desideri visualizzare i prezzi tariffari specifici del cliente",
         "data": {
-          "include_vat": "Includi IVA (8,1%)"
+          "include_vat": "Includi IVA (8,1%)",
+          "regional_fee": "Supplemento regionale"
         }
       }
     },
@@ -48,7 +50,8 @@
         "title": "Configura opzioni tariffe EKZ",
         "description": "Regola le impostazioni per la tua integrazione tariffaria",
         "data": {
-          "include_vat": "Includi IVA (8,1%)"
+          "include_vat": "Includi IVA (8,1%)",
+          "regional_fee": "Supplemento regionale"
         }
       }
     }

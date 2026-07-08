@@ -17,10 +17,13 @@ from .const import (
     CONF_AUTH_TYPE,
     CONF_EMS_INSTANCE_ID,
     CONF_INCLUDE_VAT,
+    CONF_REGIONAL_FEE,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
     OAUTH2_SCOPES,
+    REGIONAL_FEE_CHOICES,
+    REGIONAL_FEE_NONE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,6 +91,9 @@ class OAuth2FlowHandler(
                         TARIFF_CHOICES
                     ),
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
+                    vol.Optional(CONF_REGIONAL_FEE, default=REGIONAL_FEE_NONE): vol.In(
+                        REGIONAL_FEE_CHOICES
+                    ),
                 }
             )
             return self.async_show_form(step_id="public_config", data_schema=schema)
@@ -103,6 +109,7 @@ class OAuth2FlowHandler(
                 CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
                 CONF_TARIFF_NAME: user_input[CONF_TARIFF_NAME],
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
+                CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
             },
         )
 
@@ -214,11 +221,12 @@ class OAuth2FlowHandler(
     async def async_step_ems_linking_complete(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Complete the config flow after EMS linking - ask for VAT preference."""
+        """Complete the config flow after EMS linking - ask for VAT and regional fee preferences."""
         if user_input is None:
             schema = vol.Schema(
                 {
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
+                    vol.Optional(CONF_REGIONAL_FEE, default=False): bool,
                 }
             )
             return self.async_show_form(
@@ -235,6 +243,7 @@ class OAuth2FlowHandler(
                 CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
                 CONF_EMS_INSTANCE_ID: self.ems_instance_id,
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
+                CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
                 **self.oauth_data,
             },
         )
@@ -272,19 +281,43 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
                 data={
                     **self.config_entry.data,
                     CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
+                    CONF_REGIONAL_FEE: user_input[CONF_REGIONAL_FEE],
                 },
             )
             # Reload the integration to apply changes
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
-        # Get current value from config entry
+        # Get current values from config entry
         current_include_vat = self.config_entry.data.get(CONF_INCLUDE_VAT, False)
-
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
-            }
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE)
+        current_regional_fee = self.config_entry.data.get(
+            CONF_REGIONAL_FEE, REGIONAL_FEE_NONE
         )
+
+        # OAuth path: checkbox (API returns the customer's actual fees)
+        # Public path: dropdown (user must select the right regional fee)
+        if auth_type == AUTH_TYPE_OAUTH:
+            regional_fee_default = bool(
+                current_regional_fee and current_regional_fee != REGIONAL_FEE_NONE
+            )
+            regional_fee_field = vol.Optional(
+                CONF_REGIONAL_FEE, default=regional_fee_default
+            )
+            schema = vol.Schema(
+                {
+                    vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
+                    regional_fee_field: bool,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
+                    vol.Optional(
+                        CONF_REGIONAL_FEE, default=current_regional_fee
+                    ): vol.In(REGIONAL_FEE_CHOICES),
+                }
+            )
 
         return self.async_show_form(step_id="init", data_schema=schema)
