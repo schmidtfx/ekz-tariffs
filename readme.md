@@ -55,7 +55,7 @@ Select this option if you want to manually choose your tariff plan. This doesn't
 Select this option to authenticate with your EKZ customer account and automatically retrieve your personalized tariff data.
 
 **Prerequisites:**
-- You need OAuth credentials (Client ID and Client Secret) from EKZ
+- You need OAuth credentials (Client ID, and Client Secret if EKZ issued you a confidential client) from EKZ
 - You must have a myEKZ customer account
 
 **OAuth Setup:**
@@ -74,7 +74,7 @@ Select this option to authenticate with your EKZ customer account and automatica
    - Go to **Settings** ➤ **Devices & Services** ➤ **Application Credentials**
    - Click ➕ **Add Application Credential**
    - Select "EKZ Dynamic Tariffs"
-   - Enter your Client ID and Client Secret received from EKZ
+   - Enter your Client ID and Client Secret received from EKZ (leave Client Secret blank if EKZ issued you a public/PKCE client)
    - Click **Submit**
 
 3. **Add the Integration:**

@@ -162,3 +162,5 @@ cython_debug/
 
 .ha-config/
 .ruff_ls cache/
+.claude/
+.ruff_cache/
