@@ -31,15 +31,18 @@ async def hass_time_zone(hass: HomeAssistant):
     return hass
 
 
-def make_slots(start: dt.datetime, prices: list[float], minutes=15):
+def make_slots(start: dt.datetime, prices: list[float], minutes=15, feed_in=None):
     """Create contiguous TariffSlot-like dicts."""
     from custom_components.ekz_tariffs.api import TariffSlot
 
     out = []
     cur = start
-    for p in prices:
+    for i, p in enumerate(prices):
         nxt = cur + dt.timedelta(minutes=minutes)
-        out.append(TariffSlot(start=cur, end=nxt, price_chf_per_kwh=p))
+        fi = feed_in[i] if feed_in is not None else None
+        out.append(
+            TariffSlot(start=cur, end=nxt, price_chf_per_kwh=p, feed_in_chf_per_kwh=fi)
+        )
         cur = nxt
     return out
 

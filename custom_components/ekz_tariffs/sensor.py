@@ -151,6 +151,87 @@ class EkzCurrentPriceSensor(SensorEntity):
         return attrs
 
 
+class EkzFeedInPriceSensor(EkzCurrentPriceSensor):
+    """Current feed-in price with the full slot schedule as attribute."""
+
+    def __init__(
+        self, hass: HomeAssistant, entry_id: str, tariff_name: str | None, coordinator
+    ) -> None:
+        super().__init__(hass, entry_id, tariff_name, coordinator)
+        self._attr_unique_id = f"{entry_id}_feed_in_price"
+        self._attr_name = "Feed-in price"
+
+    def _feed_in_slots(self) -> list[TariffSlot]:
+        slots: list[TariffSlot] = self._coordinator.data or []
+        return [s for s in slots if s.feed_in_chf_per_kwh is not None]
+
+    def _next_feed_in_boundary(self, now: dt.datetime) -> dt.datetime | None:
+        # fuse_slots() keys on the consumption price, so boundaries must be
+        # derived from the feed-in slots directly.
+        for slot in self._feed_in_slots():
+            if slot.start > now:
+                return slot.start
+            if slot.end > now:
+                return slot.end
+        return None
+
+    def _schedule_next_boundary_update(self) -> None:
+        self._clear_boundary_timer()
+        next_boundary = self._next_feed_in_boundary(dt_util.now())
+        if not next_boundary:
+            return
+
+        async def _on_boundary(_now: dt.datetime) -> None:
+            self.async_write_ha_state()
+            self._schedule_next_boundary_update()
+
+        self._unsub_boundary = async_track_point_in_time(
+            self.hass, _on_boundary, next_boundary
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        now = dt_util.now()
+        for slot in self._feed_in_slots():
+            if slot.start <= now < slot.end:
+                return round(slot.feed_in_chf_per_kwh, 6)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        now = dt_util.now()
+        feed_slots = self._feed_in_slots()
+
+        cur = None
+        for slot in feed_slots:
+            if slot.start <= now < slot.end:
+                cur = slot
+                break
+
+        next_boundary = self._next_feed_in_boundary(now)
+        attrs: dict[str, Any] = {
+            "schedule_date": dt_util.as_local(now).date().isoformat(),
+            "next_change": next_boundary.isoformat() if next_boundary else None,
+            "schedule": [
+                {
+                    "start": s.start.isoformat(),
+                    "end": s.end.isoformat(),
+                    "feed_in_chf_per_kwh": round(s.feed_in_chf_per_kwh, 6),
+                }
+                for s in feed_slots
+            ],
+        }
+
+        if self._tariff_name:
+            attrs["tariff_name"] = self._tariff_name
+
+        if cur:
+            attrs["slot_start"] = cur.start.isoformat()
+            attrs["slot_end"] = cur.end.isoformat()
+
+        return attrs
+
+
 class EkzNextChangeSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -428,6 +509,9 @@ async def async_setup_entry(
 
     entities = [
         EkzCurrentPriceSensor(
+            hass, entry.entry_id, data["tariff_name"], data["coordinator"]
+        ),
+        EkzFeedInPriceSensor(
             hass, entry.entry_id, data["tariff_name"], data["coordinator"]
         ),
         EkzNextChangeSensor(

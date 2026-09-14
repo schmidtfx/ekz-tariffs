@@ -78,6 +78,9 @@
       "current_price": {
         "name": "Current price"
       },
+      "feed_in_price": {
+        "name": "Feed-in price"
+      },
       "next_change": {
         "name": "Next change"
       },

@@ -16,6 +16,7 @@ def slots_to_json(slots: list[TariffSlot]) -> list[dict[str, Any]]:
             "start": s.start.isoformat(),
             "end": s.end.isoformat(),
             "price": s.price_chf_per_kwh,
+            "feed_in": s.feed_in_chf_per_kwh,
         }
         for s in slots
     ]
@@ -28,11 +29,13 @@ def slots_from_json(raw: list[dict[str, Any]]) -> list[TariffSlot]:
         end = dt_util.parse_datetime(item["end"])
         if start is None or end is None:
             continue
+        feed_in = item.get("feed_in")
         out.append(
             TariffSlot(
                 start=dt_util.as_local(start),
                 end=dt_util.as_local(end),
                 price_chf_per_kwh=float(item["price"]),
+                feed_in_chf_per_kwh=float(feed_in) if feed_in is not None else None,
             )
         )
     out.sort(key=lambda s: s.start)

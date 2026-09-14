@@ -78,6 +78,9 @@
       "current_price": {
         "name": "Prezzo attuale"
       },
+      "feed_in_price": {
+        "name": "Tariffa d'immissione"
+      },
       "next_change": {
         "name": "Prossimo cambio"
       },

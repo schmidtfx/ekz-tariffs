@@ -78,6 +78,9 @@
       "current_price": {
         "name": "Prix actuel"
       },
+      "feed_in_price": {
+        "name": "Tarif de réinjection"
+      },
       "next_change": {
         "name": "Prochain changement"
       },

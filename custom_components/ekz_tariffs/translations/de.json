@@ -78,6 +78,9 @@
       "current_price": {
         "name": "Aktueller Preis"
       },
+      "feed_in_price": {
+        "name": "Rückliefertarif"
+      },
       "next_change": {
         "name": "Nächste Änderung"
       },

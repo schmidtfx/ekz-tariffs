@@ -22,11 +22,19 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _extract_chf_kwh(components: list[dict[str, Any]]) -> float | None:
+    for comp in components:
+        if comp.get("unit") == "CHF_kWh":
+            return comp.get("value")
+    return None
+
+
 @dataclass(frozen=True)
 class TariffSlot:
     start: datetime
     end: datetime
     price_chf_per_kwh: float
+    feed_in_chf_per_kwh: float | None = None
 
 
 @dataclass(frozen=True)
@@ -118,9 +126,9 @@ class EkzTariffsApi:
 
         # Regional fee responses use the "regional_fees" key instead of "integrated"
         for item in data.get("prices", []):
-            for comp in item.get("regional_fees", []):
-                if comp.get("unit") == "CHF_kWh":
-                    return float(comp.get("value", 0))
+            fee = _extract_chf_kwh(item.get("regional_fees", []))
+            if fee is not None:
+                return float(fee)
 
         return None
 
@@ -142,6 +150,10 @@ class EkzTariffsApi:
                         price_val = price_val * (1 + VAT_RATE)
                     break
 
+            feed_in_val = _extract_chf_kwh(item.get("feed_in", []))
+            if feed_in_val is not None and incl_vat:
+                feed_in_val = feed_in_val * (1 + VAT_RATE)
+
             if price_val is None:
                 continue
 
@@ -150,6 +162,11 @@ class EkzTariffsApi:
                     start=dt_util.as_local(start_ts),
                     end=dt_util.as_local(end_ts),
                     price_chf_per_kwh=round(float(price_val), 4),
+                    feed_in_chf_per_kwh=(
+                        round(float(feed_in_val), 4)
+                        if feed_in_val is not None
+                        else None
+                    ),
                 )
             )
 
@@ -214,29 +231,31 @@ class EkzTariffsOAuthApi:
             end_ts = dt_util.parse_datetime(item["end_timestamp"])
             if start_ts is None or end_ts is None:
                 continue
-            price_val = None
-            for comp in item.get("integrated", []):
-                if comp.get("unit") == "CHF_kWh":
-                    price_val = comp.get("value")
-                    break
-
+            price_val = _extract_chf_kwh(item.get("integrated", []))
             if price_val is None:
                 continue
 
+            feed_in_val = _extract_chf_kwh(item.get("feed_in", []))
+
             # Sum regional fees from the same response (no extra API call)
             if regional_fee and regional_fee != REGIONAL_FEE_NONE:
-                for comp in item.get("regional_fees", []):
-                    if comp.get("unit") == "CHF_kWh":
-                        price_val += comp.get("value")
+                price_val += _extract_chf_kwh(item.get("regional_fees", [])) or 0
 
             if incl_vat:
                 price_val = price_val * (1 + VAT_RATE)
+                if feed_in_val is not None:
+                    feed_in_val = feed_in_val * (1 + VAT_RATE)
 
             slots.append(
                 TariffSlot(
                     start=dt_util.as_local(start_ts),
                     end=dt_util.as_local(end_ts),
                     price_chf_per_kwh=round(float(price_val), 4),
+                    feed_in_chf_per_kwh=(
+                        round(float(feed_in_val), 4)
+                        if feed_in_val is not None
+                        else None
+                    ),
                 )
             )
 

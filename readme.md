@@ -104,6 +104,7 @@ This integration provides multiple sensors to help you monitor and optimize your
 | Sensor Name | Type | Unit | Enabled by Default | Description |
 | :---------- | :--- | :--- | :----------------- | :---------- |
 | Current price | Sensor | CHF/kWh | ✅ | Current electricity price |
+| Feed-in price | Sensor | CHF/kWh | ✅ | Current feed-in price with full slot schedule as attribute |
 | Next change | Sensor | Timestamp | ✅ | When the price will next change |
 | Average price today | Sensor | CHF/kWh | ✅ | Average price for today with statistics |
 | Average price tomorrow | Sensor | CHF/kWh | ❌ | Average price for tomorrow with statistics |
@@ -140,6 +141,18 @@ This integration provides multiple sensors to help you monitor and optimize your
   - `next_change`: Timestamp when the price will next change
   - `slot_start`: Start time of the current price slot
   - `slot_end`: End time of the current price slot
+  - `tariff_name`: Name of your tariff plan (if using Public API)
+
+#### Feed-in Price
+- **Entity ID**: `sensor.<entry_name>_feed_in_price`
+- **Unit**: CHF/kWh
+- **Description**: Shows the current feed-in price (Einspeisevergütung) per 15-minute slot
+- **Attributes**:
+  - `schedule`: Full slot schedule as a list of `{start, end, feed_in_chf_per_kwh}` entries covering today and tomorrow (as published by EKZ, typically by 18:00 for the next day)
+  - `schedule_date`: Date of the current schedule
+  - `next_change`: Timestamp when the feed-in price will next change
+  - `slot_start`: Start time of the current feed-in slot
+  - `slot_end`: End time of the current feed-in slot
   - `tariff_name`: Name of your tariff plan (if using Public API)
 
 #### Next Change

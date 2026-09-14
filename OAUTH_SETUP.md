@@ -522,8 +522,12 @@ To test the OAuth flow without affecting your production setup:
 1. Use the test environment endpoints (commented out in `const.py`):
    ```python
    # Test endpoints
-   OAUTH2_AUTHORIZE = "https://login-test.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/auth"
-   OAUTH2_TOKEN = "https://login-test.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token"
+   OAUTH2_AUTHORIZE = (
+       "https://login-test.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/auth"
+   )
+   OAUTH2_TOKEN = (
+       "https://login-test.ekz.ch/auth/realms/myEKZ/protocol/openid-connect/token"
+   )
    API_BASE = "https://test-api.tariffs.ekz.ch/v1"
    ```
 
