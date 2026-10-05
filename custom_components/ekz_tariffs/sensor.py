@@ -135,6 +135,14 @@ class EkzCurrentPriceSensor(SensorEntity):
         attrs: dict[str, Any] = {
             "schedule_date": dt_util.as_local(now).date().isoformat(),
             "next_change": next_boundary.isoformat() if next_boundary else None,
+            "schedule": [
+                {
+                    "start": s.start.isoformat(),
+                    "end": s.end.isoformat(),
+                    "price_chf_per_kwh": round(s.price_chf_per_kwh, 6),
+                }
+                for s in slots
+            ],
         }
 
         if self._tariff_name:
