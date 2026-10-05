@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from custom_components.ekz_tariffs.sensor import EkzPriceSensor
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
@@ -11,9 +14,7 @@ from tests.conftest import make_slots
 
 
 async def _setup_with_slots(hass, entry, slots):
-    """Set up the entry with `slots` and return the current price sensor state."""
     entry.add_to_hass(hass)
-
     with patch(
         "custom_components.ekz_tariffs.api.EkzTariffsApi.fetch_tariffs",
         return_value=slots,
@@ -22,14 +23,9 @@ async def _setup_with_slots(hass, entry, slots):
         await hass.async_block_till_done()
 
     registry = er.async_get(hass)
-    entity_id = None
-    for e in registry.entities.values():
-        if (
-            e.config_entry_id == entry.entry_id
-            and e.unique_id == f"{entry.entry_id}_current_price"
-        ):
-            entity_id = e.entity_id
-
+    entity_id = registry.async_get_entity_id(
+        "sensor", "ekz_tariffs", f"{entry.entry_id}_integrated"
+    )
     assert entity_id is not None
     state = hass.states.get(entity_id)
     assert state is not None
@@ -37,88 +33,134 @@ async def _setup_with_slots(hass, entry, slots):
 
 
 @pytest.mark.asyncio
-async def test_raw_today_and_tomorrow_are_full_days(
+async def test_forecast_contains_only_future_priced_slots(
     hass_time_zone, mock_config_entry, patch_now, fixed_now
 ):
-    hass = hass_time_zone
     midnight = dt_util.start_of_local_day(fixed_now)
+    prices = [round(0.10 + i / 1000, 6) for i in range(192)]
+    slots = make_slots(midnight, prices)
 
-    # 96 slots today + 96 slots tomorrow, each distinguishable by index.
-    today_prices = [round(0.10 + i / 1000, 6) for i in range(96)]
-    tomorrow_prices = [round(0.50 + i / 1000, 6) for i in range(96)]
-    slots = make_slots(midnight, today_prices + tomorrow_prices)
+    state = await _setup_with_slots(hass_time_zone, mock_config_entry, slots)
+    forecast = state.attributes["forecast"]
 
-    state = await _setup_with_slots(hass, mock_config_entry, slots)
-    attrs = state.attributes
-
-    assert attrs["raw_today"] == today_prices
-    assert attrs["raw_tomorrow"] == tomorrow_prices
-    # index 0 is local midnight, so the 12:07 "now" falls in bucket 48
-    assert attrs["raw_today"][48] == today_prices[48]
-    assert float(state.state) == today_prices[48]
+    assert forecast[0] == [
+        (midnight + dt.timedelta(minutes=49 * 15)).isoformat(),
+        prices[49],
+    ]
+    assert forecast[-1] == [
+        (midnight + dt.timedelta(days=1, minutes=95 * 15)).isoformat(),
+        prices[-1],
+    ]
+    assert len(forecast) == 143
+    assert all(dt_util.parse_datetime(start) > fixed_now for start, _ in forecast)
+    assert [start for start, _ in forecast] == sorted(start for start, _ in forecast)
+    assert await hass_time_zone.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass_time_zone.async_block_till_done()
 
 
 @pytest.mark.asyncio
-async def test_raw_tomorrow_is_null_padded_before_publication(
+async def test_forecast_is_empty_without_future_data(
     hass_time_zone, mock_config_entry, patch_now, fixed_now
 ):
-    hass = hass_time_zone
-    midnight = dt_util.start_of_local_day(fixed_now)
-    slots = make_slots(midnight, [0.2] * 96)
+    start = fixed_now.replace(minute=0, second=0)
+    slots = make_slots(start, [0.2])
 
-    state = await _setup_with_slots(hass, mock_config_entry, slots)
-    attrs = state.attributes
+    state = await _setup_with_slots(hass_time_zone, mock_config_entry, slots)
 
-    assert attrs["raw_today"] == [0.2] * 96
-    # Full-length list of None, not an empty list or a missing key.
-    assert attrs["raw_tomorrow"] == [None] * 96
+    assert state.attributes["forecast"] == []
+    assert await hass_time_zone.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass_time_zone.async_block_till_done()
 
 
 @pytest.mark.asyncio
-async def test_partial_data_yields_none_holes(
+async def test_forecast_has_common_attributes_and_is_unrecorded(
     hass_time_zone, mock_config_entry, patch_now, fixed_now
 ):
+    start = fixed_now.replace(minute=0, second=0)
+    slots = make_slots(
+        start,
+        [0.2, 0.21, 0.22, 0.23],
+        feed_in=[0.08, 0.09, 0.10, 0.11],
+    )
     hass = hass_time_zone
-    midnight = dt_util.start_of_local_day(fixed_now)
-    # Only 08:00-09:00 published (buckets 32..35).
-    slots = make_slots(midnight + dt.timedelta(hours=8), [0.3, 0.31, 0.32, 0.33])
+    await _setup_with_slots(hass, mock_config_entry, slots)
 
-    state = await _setup_with_slots(hass, mock_config_entry, slots)
-    raw_today = state.attributes["raw_today"]
-
-    assert len(raw_today) == 96
-    assert raw_today[31] is None
-    assert raw_today[32:36] == [0.3, 0.31, 0.32, 0.33]
-    assert raw_today[36] is None
+    registry = er.async_get(hass)
+    expected_attributes = {
+        "tariff_name",
+        "publication_timestamp",
+        "slot_start",
+        "slot_end",
+        "next_change",
+        "forecast",
+    }
+    for suffix in ("integrated", "integrated_complete", "feed_in"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", "ekz_tariffs", f"{mock_config_entry.entry_id}_{suffix}"
+        )
+        assert entity_id is not None
+        state = hass.states.get(entity_id)
+        assert state is not None
+        assert expected_attributes <= set(state.attributes)
+        assert "forecast" in state.state_info["unrecorded_attributes"]
+    for suffix in ("electricity", "grid", "regional_fees"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", "ekz_tariffs", f"{mock_config_entry.entry_id}_{suffix}"
+        )
+        assert entity_id is not None
+        assert (
+            registry.async_get(entity_id).disabled_by
+            == er.RegistryEntryDisabler.INTEGRATION
+        )
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
 
 
 @pytest.mark.asyncio
-async def test_publication_timestamp_is_aware(
-    hass_time_zone, mock_config_entry, patch_now, fixed_now
+async def test_all_price_components_share_the_same_attributes(
+    hass_time_zone, patch_now, fixed_now
 ):
-    hass = hass_time_zone
-    midnight = dt_util.start_of_local_day(fixed_now)
-    slots = make_slots(midnight, [0.2] * 96)
+    start = fixed_now.replace(minute=0, second=0)
+    slots = make_slots(start, [0.40, 0.50], feed_in=[0.05, 0.06])
+    slots[0] = replace(
+        slots[0],
+        price_chf_per_kwh=0.36,
+        integrated_chf_per_kwh=0.30,
+        electricity_chf_per_kwh=0.10,
+        grid_chf_per_kwh=0.20,
+        regional_fees_chf_per_kwh=0.06,
+    )
+    coordinator = SimpleNamespace(
+        data=slots,
+        publication_timestamp=fixed_now,
+        last_fetched=fixed_now,
+    )
+    expected_attributes = {
+        "tariff_name",
+        "publication_timestamp",
+        "slot_start",
+        "slot_end",
+        "next_change",
+        "forecast",
+    }
 
-    state = await _setup_with_slots(hass, mock_config_entry, slots)
+    for component, expected_value in (
+        ("electricity", 0.10),
+        ("grid", 0.20),
+        ("regional_fees", 0.06),
+        ("integrated", 0.30),
+        ("integrated_complete", 0.36),
+        ("feed_in", 0.05),
+    ):
+        sensor = EkzPriceSensor(
+            hass_time_zone,
+            "entry",
+            coordinator,
+            component,
+            f"tariff_{component}",
+            True,
+        )
 
-    published = dt_util.parse_datetime(state.attributes["publication_timestamp"])
-    assert published is not None
-    assert published.tzinfo is not None
-
-
-@pytest.mark.asyncio
-async def test_raw_arrays_are_excluded_from_recorder(
-    hass_time_zone, mock_config_entry, patch_now, fixed_now
-):
-    """The arrays are large and change every 15 min; they must not be recorded."""
-    hass = hass_time_zone
-    midnight = dt_util.start_of_local_day(fixed_now)
-    slots = make_slots(midnight, [0.2] * 96)
-
-    state = await _setup_with_slots(hass, mock_config_entry, slots)
-
-    assert state.state_info is not None
-    excluded = state.state_info["unrecorded_attributes"]
-    assert "raw_today" in excluded
-    assert "raw_tomorrow" in excluded
+        assert sensor.native_value == expected_value
+        assert set(sensor.extra_state_attributes) == expected_attributes
+        assert sensor._unrecorded_attributes == frozenset({"forecast"})

@@ -7,7 +7,7 @@ from homeassistant.helpers import entity_registry as er
 
 
 @pytest.mark.asyncio
-async def test_current_price_and_next_change_sensors(
+async def test_integrated_and_integrated_complete_price_sensors(
     hass_time_zone,
     mock_config_entry,
     patch_now,
@@ -34,28 +34,35 @@ async def test_current_price_and_next_change_sensors(
     registry = er.async_get(hass)
 
     # Find sensors by unique_id (most stable in tests)
-    current_entity_id = None
+    integrated_entity_id = None
+    integrated_complete_entity_id = None
     nextchange_entity_id = None
     for e in registry.entities.values():
         if e.config_entry_id != mock_config_entry.entry_id:
             continue
-        if e.unique_id == f"{mock_config_entry.entry_id}_current_price":
-            current_entity_id = e.entity_id
+        if e.unique_id == f"{mock_config_entry.entry_id}_integrated":
+            integrated_entity_id = e.entity_id
+        if e.unique_id == f"{mock_config_entry.entry_id}_integrated_complete":
+            integrated_complete_entity_id = e.entity_id
         if e.unique_id == f"{mock_config_entry.entry_id}_next_change":
             nextchange_entity_id = e.entity_id
 
-    assert current_entity_id is not None
+    assert integrated_entity_id is not None
+    assert integrated_complete_entity_id is not None
     assert nextchange_entity_id is not None
 
     # State now should be within the first slot price (0.20)
-    cur = hass.states.get(current_entity_id)
+    cur = hass.states.get(integrated_entity_id)
     assert cur is not None
     assert float(cur.state) == 0.20
-    print(cur)
+    total = hass.states.get(integrated_complete_entity_id)
+    assert total is not None
+    assert float(total.state) == 0.20
 
     nxt = hass.states.get(nextchange_entity_id)
     assert nxt is not None
     # Next change should be at end of the current 15-min slot:
     # fixed_now is at 11:07 -> boundary is 11:15
-    print(nxt.state)
     assert "11:15:00" in nxt.state
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()

@@ -71,6 +71,8 @@ class EkzInConsecutiveWindowSensor(BinarySensorEntity):
         self.async_on_remove(
             self._coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        self.async_on_remove(self._clear_boundary_timer)
+        self.async_on_remove(self._clear_midnight_timer)
         self._schedule_midnight_update()
         self._schedule_next_boundary_update()
         self._handle_coordinator_update()

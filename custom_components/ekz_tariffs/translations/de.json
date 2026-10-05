@@ -10,11 +10,20 @@
       },
       "public_config": {
         "title": "Öffentliche API-Konfiguration",
-        "description": "Wählen Sie Ihren Tarifplan",
+        "description": "Wählen Sie Netzprodukt und Region aus; verwenden Sie den Sensor Integriert, wenn regionale Gebühren ausgeschlossen werden sollen",
         "data": {
-          "tariff_name": "Tarifname",
-          "include_vat": "MwSt. einbeziehen (8,1%)",
-          "regional_fee": "Regionale Abgabe"
+          "grid_product": "Netzprodukt",
+          "region": "Region",
+          "include_vat": "MwSt. einbeziehen (8,1%)"
+        }
+      },
+      "reconfigure": {
+        "title": "EKZ-Tarife neu konfigurieren",
+        "description": "Wählen Sie Produkte für Ihren öffentlichen Tarif; verwenden Sie den Sensor Integriert, wenn regionale Gebühren ausgeschlossen werden sollen",
+        "data": {
+          "grid_product": "Netzprodukt",
+          "region": "Region",
+          "include_vat": "MwSt. einbeziehen (8,1%)"
         }
       },
       "oauth_client_type": {
@@ -42,8 +51,7 @@
         "title": "Kundentarif-Optionen konfigurieren",
         "description": "Konfigurieren Sie, wie Sie Ihre kundenspezifischen Tarifpreise anzeigen möchten",
         "data": {
-          "include_vat": "MwSt. einbeziehen (8,1%)",
-          "regional_fee": "Regionale Abgabe"
+          "include_vat": "MwSt. einbeziehen (8,1%)"
         }
       }
     },
@@ -55,17 +63,19 @@
     },
     "abort": {
       "already_configured": "Diese Konfiguration ist bereits eingerichtet",
-      "oauth_error": "OAuth-Authentifizierung fehlgeschlagen"
+      "oauth_error": "OAuth-Authentifizierung fehlgeschlagen",
+      "reconfigure_successful": "EKZ-Tarifeinstellungen aktualisiert"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "EKZ Tarife Optionen konfigurieren",
-        "description": "Einstellungen für Ihre Tarifintegration anpassen",
+        "description": "Passen Sie die Tarifeinstellungen an; verwenden Sie den Sensor Integriert, wenn regionale Gebühren ausgeschlossen werden sollen",
         "data": {
-          "include_vat": "MwSt. einbeziehen (8,1%)",
-          "regional_fee": "Regionale Abgabe"
+          "grid_product": "Netzprodukt",
+          "region": "Region",
+          "include_vat": "MwSt. einbeziehen (8,1%)"
         }
       }
     }
@@ -75,8 +85,23 @@
   },
   "entity": {
     "sensor": {
-      "current_price": {
-        "name": "Aktueller Preis"
+      "electricity": {
+        "name": "Energietarif"
+      },
+      "grid": {
+        "name": "Netznutzungstarif"
+      },
+      "regional_fees": {
+        "name": "Regionalabgaben"
+      },
+      "integrated": {
+        "name": "Basistarif"
+      },
+      "integrated_complete": {
+        "name": "Bezugstarif"
+      },
+      "feed_in": {
+        "name": "Rückliefertarif"
       },
       "feed_in_price": {
         "name": "Rückliefertarif"

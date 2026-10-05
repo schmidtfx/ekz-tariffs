@@ -18,25 +18,27 @@ from .const import (
     CONF_AUTH_TYPE,
     CONF_CLIENT_ID,
     CONF_EMS_INSTANCE_ID,
+    CONF_GRID_PRODUCT,
     CONF_INCLUDE_VAT,
     CONF_OAUTH_CLIENT_TYPE,
-    CONF_REGIONAL_FEE,
-    CONF_TARIFF_NAME,
+    CONF_REGION,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
+    GRID_PRODUCT_CHOICES,
     OAUTH2_AUTHORIZE,
     OAUTH2_SCOPES,
     OAUTH2_TOKEN,
     OAUTH_CLIENT_TYPE_CONFIDENTIAL,
     OAUTH_CLIENT_TYPE_PUBLIC,
-    REGIONAL_FEE_CHOICES,
-    REGIONAL_FEE_NONE,
+    REGION_CHOICES,
 )
 from .oauth_impl import EKZOAuth2Implementation
 
 _LOGGER = logging.getLogger(__name__)
 
-TARIFF_CHOICES = ["400D", "400F", "400ST", "400WP", "400L", "400LS", "16L", "16LS"]
+
+def _region_default(region: str | None) -> str:
+    return region if region in REGION_CHOICES else REGION_CHOICES[0]
 
 
 class OAuth2FlowHandler(
@@ -154,29 +156,27 @@ class OAuth2FlowHandler(
         if user_input is None:
             schema = vol.Schema(
                 {
-                    vol.Required(CONF_TARIFF_NAME, default=DEFAULT_TARIFF_NAME): vol.In(
-                        TARIFF_CHOICES
-                    ),
+                    vol.Required(
+                        CONF_GRID_PRODUCT, default=DEFAULT_TARIFF_NAME
+                    ): vol.In(GRID_PRODUCT_CHOICES),
+                    vol.Required(CONF_REGION): vol.In(REGION_CHOICES),
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
-                    vol.Optional(CONF_REGIONAL_FEE, default=REGIONAL_FEE_NONE): vol.In(
-                        REGIONAL_FEE_CHOICES
-                    ),
                 }
             )
             return self.async_show_form(step_id="public_config", data_schema=schema)
 
-        await self.async_set_unique_id(
-            f"{DOMAIN}_public_{user_input[CONF_TARIFF_NAME]}"
-        )
+        grid_product = user_input[CONF_GRID_PRODUCT]
+        region = user_input[CONF_REGION]
+        await self.async_set_unique_id(f"{DOMAIN}_public_{grid_product}")
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title=f"EKZ {user_input[CONF_TARIFF_NAME]}",
+            title=f"EKZ {grid_product}",
             data={
                 CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
-                CONF_TARIFF_NAME: user_input[CONF_TARIFF_NAME],
+                CONF_GRID_PRODUCT: grid_product,
+                CONF_REGION: region,
                 CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
-                CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
             },
         )
 
@@ -288,12 +288,11 @@ class OAuth2FlowHandler(
     async def async_step_ems_linking_complete(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Complete the config flow after EMS linking - ask for VAT and regional fee preferences."""
+        """Complete the config flow after EMS linking and ask for VAT preference."""
         if user_input is None:
             schema = vol.Schema(
                 {
                     vol.Optional(CONF_INCLUDE_VAT, default=False): bool,
-                    vol.Optional(CONF_REGIONAL_FEE, default=False): bool,
                 }
             )
             return self.async_show_form(
@@ -308,7 +307,6 @@ class OAuth2FlowHandler(
             CONF_AUTH_TYPE: AUTH_TYPE_OAUTH,
             CONF_EMS_INSTANCE_ID: self.ems_instance_id,
             CONF_INCLUDE_VAT: user_input.get(CONF_INCLUDE_VAT, False),
-            CONF_REGIONAL_FEE: user_input.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE),
             **self.oauth_data,
         }
         # Public-client flows must persist the client_id so the implementation
@@ -326,7 +324,48 @@ class OAuth2FlowHandler(
 class EkzTariffsConfigFlow(OAuth2FlowHandler, config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for EKZ Tariffs."""
 
-    VERSION = 1
+    VERSION = 2
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Collect updated product selections for a migrated entry."""
+        entry = self._get_reconfigure_entry()
+        is_public = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PUBLIC) == AUTH_TYPE_PUBLIC
+
+        if user_input is not None:
+            data = {**entry.data, **user_input}
+            self.hass.config_entries.async_update_entry(entry, data=data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
+
+        if is_public:
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_GRID_PRODUCT,
+                        default=entry.data.get(CONF_GRID_PRODUCT, DEFAULT_TARIFF_NAME),
+                    ): vol.In(GRID_PRODUCT_CHOICES),
+                    vol.Required(
+                        CONF_REGION,
+                        default=_region_default(entry.data.get(CONF_REGION)),
+                    ): vol.In(REGION_CHOICES),
+                    vol.Optional(
+                        CONF_INCLUDE_VAT,
+                        default=entry.data.get(CONF_INCLUDE_VAT, False),
+                    ): bool,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_INCLUDE_VAT,
+                        default=entry.data.get(CONF_INCLUDE_VAT, False),
+                    ): bool,
+                }
+            )
+        return self.async_show_form(step_id="reconfigure", data_schema=schema)
 
     @staticmethod
     def async_get_options_flow(
@@ -349,14 +388,20 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
-            # Update the config entry
+            data = {
+                **self.config_entry.data,
+                CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
+            }
+            if self.config_entry.data.get(CONF_AUTH_TYPE) != AUTH_TYPE_OAUTH:
+                data.update(
+                    {
+                        CONF_GRID_PRODUCT: user_input[CONF_GRID_PRODUCT],
+                        CONF_REGION: user_input[CONF_REGION],
+                    }
+                )
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
-                data={
-                    **self.config_entry.data,
-                    CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
-                    CONF_REGIONAL_FEE: user_input[CONF_REGIONAL_FEE],
-                },
+                data=data,
             )
             # Reload the integration to apply changes
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
@@ -365,32 +410,26 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
         # Get current values from config entry
         current_include_vat = self.config_entry.data.get(CONF_INCLUDE_VAT, False)
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE)
-        current_regional_fee = self.config_entry.data.get(
-            CONF_REGIONAL_FEE, REGIONAL_FEE_NONE
-        )
-
-        # OAuth path: checkbox (API returns the customer's actual fees)
-        # Public path: dropdown (user must select the right regional fee)
         if auth_type == AUTH_TYPE_OAUTH:
-            regional_fee_default = bool(
-                current_regional_fee and current_regional_fee != REGIONAL_FEE_NONE
-            )
-            regional_fee_field = vol.Optional(
-                CONF_REGIONAL_FEE, default=regional_fee_default
-            )
             schema = vol.Schema(
-                {
-                    vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
-                    regional_fee_field: bool,
-                }
+                {vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool}
             )
         else:
             schema = vol.Schema(
                 {
+                    vol.Required(
+                        CONF_GRID_PRODUCT,
+                        default=self.config_entry.data.get(
+                            CONF_GRID_PRODUCT, DEFAULT_TARIFF_NAME
+                        ),
+                    ): vol.In(GRID_PRODUCT_CHOICES),
+                    vol.Required(
+                        CONF_REGION,
+                        default=_region_default(
+                            self.config_entry.data.get(CONF_REGION)
+                        ),
+                    ): vol.In(REGION_CHOICES),
                     vol.Optional(CONF_INCLUDE_VAT, default=current_include_vat): bool,
-                    vol.Optional(
-                        CONF_REGIONAL_FEE, default=current_regional_fee
-                    ): vol.In(REGIONAL_FEE_CHOICES),
                 }
             )
 

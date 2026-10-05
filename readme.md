@@ -9,11 +9,11 @@ This is the EKZ tariffs API integration for Home Assistant.
 ## Features
 
 - **Two Authentication Methods:**
-  - **Public API**: Manually select your energy tariff (400D, 400F, 400ST, 400WP, 400L, 400LS, 16L, 16LS)
+  - **Public API**: Select grid and regional-fee products; electricity is inferred
   - **OAuth (NEW)**: Authenticate with your EKZ customer account to automatically retrieve your personalized tariffs
 - Refreshes latest energy prices every day at 6:30pm
-- Let's you customize all entities this integration provides (every entity has a unique ID)
-- Provides current energy price
+- Lets you customize all entities this integration provides (every entity has a unique ID)
+- Provides electricity, grid, regional-fee, integrated, integrated-complete, and feed-in price sensors
 - Provides a timestamp for the next change of the energy price
 - Provides sensors to indicate the most expensive and cheapest hours for today and tomorrow
 
@@ -43,13 +43,22 @@ To add the integration, go to **Settings** ➤ **Devices & Services** ➤ **Inte
 When adding the integration, you'll be asked to choose an authentication method:
 
 #### 1. Public API (Manual Tariff Selection)
-Select this option if you want to manually choose your tariff plan. This doesn't require any authentication with EKZ.
+Select the grid product and regional-fee region. The electricity product is determined automatically from the grid product. This doesn't require authentication with EKZ.
 
 **Configuration Variables:**
 
 | Name | Type | Default | Description |
 | :--- | :--- | :------ | :---------- |
-| `tariff_name` | `enum` | `400D` | 400D, 400F, 400ST, 400WP, 400L, 400LS, 16L, 16LS |
+| `grid_product` | `enum` | `400D` | `400D`, `400F`, `400ST`, `400WP`, `400L`, `400LS`, `16L`, `16LS` |
+| `region` | `enum` | Required | `lt500MWh_ZH`, `gt500MWh_ZH`, `Menzingen`, `Einsiedeln` |
+| `include_vat` | `boolean` | `false` | Applies VAT to consumption-price sensors; feed-in prices are not VAT-adjusted |
+
+Select the actual regional-fee product for your tariff. To use prices without
+regional fees, use the `integrated` sensor instead of `integrated_complete`.
+
+The electricity product is inferred from EKZ's integrated-product mapping:
+`400D` uses `dynamic`; `400F`, `400ST`, and `400WP` use `standard`; `400L`,
+`400LS`, `16L`, and `16LS` use `business`.
 
 #### 2. Customer Account (OAuth - Personalized Tariffs)
 Select this option to authenticate with your EKZ customer account and automatically retrieve your personalized tariff data.
@@ -103,8 +112,12 @@ This integration provides multiple sensors to help you monitor and optimize your
 
 | Sensor Name | Type | Unit | Enabled by Default | Description |
 | :---------- | :--- | :--- | :----------------- | :---------- |
-| Current price | Sensor | CHF/kWh | ✅ | Current electricity price, plus raw 15-min price arrays for today and tomorrow |
-| Feed-in price | Sensor | CHF/kWh | ✅ | Current feed-in price with full slot schedule as attribute |
+| Energy tariff | Sensor | CHF/kWh | ❌ | Electricity component (`..._electricity`) |
+| Grid usage tariff | Sensor | CHF/kWh | ❌ | Grid component (`..._grid`) |
+| Regional charges | Sensor | CHF/kWh | ❌ | Regional-fee component (`..._regional_fees`) |
+| Consumption tariff | Sensor | CHF/kWh | ✅ | Total: grid + electricity + regional fees (`..._integrated_complete`) |
+| Basic tariff | Sensor | CHF/kWh | ✅ | Grid + electricity, excluding regional fees (`..._integrated`) |
+| Feed-in tariff | Sensor | CHF/kWh | ✅ | Feed-in component (`..._feed_in`) |
 | Next change | Sensor | Timestamp | ✅ | When the price will next change |
 | Average price today | Sensor | CHF/kWh | ✅ | Average price for today with statistics |
 | Average price tomorrow | Sensor | CHF/kWh | ❌ | Average price for tomorrow with statistics |
@@ -132,44 +145,31 @@ This integration provides multiple sensors to help you monitor and optimize your
 
 ### Price Sensors
 
-#### Current Price
-- **Entity ID**: `sensor.<entry_name>_current_price`
-- **Unit**: CHF/kWh
-- **Description**: Shows the current electricity price
-- **Attributes**:
-  - `raw_today`: Flat list of 15-minute prices for today, indexed from local midnight
-  - `raw_tomorrow`: Same for tomorrow, `null` until EKZ publishes (typically by 18:00)
-  - `publication_timestamp`: When the price data was last fetched from EKZ
-  - `schedule_date`: Date of the current schedule
-  - `next_change`: Timestamp when the price will next change
-  - `slot_start`: Start time of the current price slot
-  - `slot_end`: End time of the current price slot
-  - `tariff_name`: Name of your tariff plan (if using Public API)
+The six price sensors share these attributes:
 
-##### Raw price arrays
+- `tariff_name`: selected tariff product for public setups; `null` for customer-specific OAuth data
+- `publication_timestamp`: EKZ publication time (or fetch time when not supplied by the API)
+- `slot_start` / `slot_end`: bounds of the current priced slot
+- `next_change`: next time the sensor's price changes
+- `forecast`: available future slots as `[start_timestamp, price]` pairs, ordered by timestamp
 
-`raw_today` and `raw_tomorrow` are plain lists of prices, one per 15-minute slot, starting at
-local midnight. Index `i` therefore covers `00:00 + i * 15min`:
+The forecast contains only slots whose start is after now. Unpublished prices are omitted, and the
+forecast can cover today and tomorrow when EKZ has published both days. Its timestamps carry local
+time-zone offsets, so consumers should parse the timestamp instead of assuming 96 slots per day.
+The `forecast` attribute is excluded from recorder history; historical prices come from the sensor's
+recorded state.
 
-```yaml
-publication_timestamp: '2026-10-28T18:30:12+01:00'
-raw_today: [0.21195, 0.20723, 0.20677, ...]
-raw_tomorrow: [null, null, null, ...]
-```
+**Breaking changes in 0.9.0:** `feed_in` replaces the previous `feed_in_price` entity, and the
+existing `current_price` entity is migrated to `integrated_complete`, retaining its price history
+and representing the total price, including regional fees. The `none` region option has been
+removed; select your region, and use the new `integrated` sensor when regional fees should be
+excluded.
+`raw_today`, `raw_tomorrow`, and feed-in `schedule` are replaced by `forecast`. Update charts that
+use those old attributes. Recorder has no supported attribute-only purge, so existing historical
+states and their large forecast attributes are kept; new forecast values are not recorded.
 
-Two things to handle when consuming them:
-
-- **Unpublished slots are `null`.** `raw_tomorrow` is a full-length list of `null` until EKZ
-  publishes the next day, so filter on `typeof v === "number"` rather than assuming numbers.
-- **DST days are not 96 entries.** On the spring-forward day the list has 92 entries and on the
-  fall-back day 100. Derive timestamps by adding `i * 15min` to local midnight instead of
-  hard-coding a length.
-
-These arrays are excluded from the recorder, so they do not bloat your history database — but it
-also means they are not available in historical states, only on the current state.
-
-Example [apexcharts-card](https://github.com/RomRider/apexcharts-card) config showing today and
-tomorrow:
+Example [apexcharts-card](https://github.com/RomRider/apexcharts-card) configuration combining
+recorded history with the future forecast:
 
 ```yaml
 type: custom:apexcharts-card
@@ -180,35 +180,22 @@ header:
   show: true
   title: EKZ Dynamic Prices
 series:
-  - entity: sensor.ekz_400d_current_price
+  - entity: sensor.ekz_400d_integrated_complete
+    name: History
     type: column
+    color: yellow
+    opacity: 1
+  - entity: sensor.ekz_400d_integrated_complete
+    name: Forecast
+    type: column
+    color: yellow
+    opacity: 0.5
     data_generator: |
-      const midnight = new Date(); midnight.setHours(0,0,0,0);
-      const slot = 15 * 60 * 1000;
-      const today = entity.attributes.raw_today || [];
-      const tomorrow = entity.attributes.raw_tomorrow || [];
-      const out = [];
-      today.forEach((v, i) => {
-        if (typeof v === "number") out.push([midnight.getTime() + i * slot, v]);
-      });
-      const t0 = midnight.getTime() + today.length * slot;
-      tomorrow.forEach((v, i) => {
-        if (typeof v === "number") out.push([t0 + i * slot, v]);
-      });
-      return out;
+      return (entity.attributes.forecast || []).map(([start, price]) => [
+        new Date(start).getTime(),
+        price
+      ]);
 ```
-
-#### Feed-in Price
-- **Entity ID**: `sensor.<entry_name>_feed_in_price`
-- **Unit**: CHF/kWh
-- **Description**: Shows the current feed-in price (Einspeisevergütung) per 15-minute slot
-- **Attributes**:
-  - `schedule`: Full slot schedule as a list of `{start, end, feed_in_chf_per_kwh}` entries covering today and tomorrow (as published by EKZ, typically by 18:00 for the next day)
-  - `schedule_date`: Date of the current schedule
-  - `next_change`: Timestamp when the feed-in price will next change
-  - `slot_start`: Start time of the current feed-in slot
-  - `slot_end`: End time of the current feed-in slot
-  - `tariff_name`: Name of your tariff plan (if using Public API)
 
 #### Next Change
 - **Entity ID**: `sensor.<entry_name>_next_change`

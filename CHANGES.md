@@ -1,3 +1,66 @@
+# Version 0.9.0
+
+*Adds separate component sensors and a future-slot forecast. The entity ID
+`sensor.<entry_name>_current_price` is migrated to
+`sensor.<entry_name>_integrated_complete`, retaining its price history; charts
+using raw future attributes must be updated.*
+
+## Features
+
+**Integrated price sensor**
+
+- Adds `integrated`, which is grid plus electricity and excludes regional
+  fees. Use it when the price should not include a regional fee.
+- `integrated_complete` is the total of grid, electricity, and regional fees.
+
+**Component and feed-in price sensors**
+
+Six price sensors are available: `electricity`, `grid`, `regional_fees`,
+`integrated`, `integrated_complete`, and `feed_in`. Grid, electricity, and
+regional-fee sensors are disabled by default. Every price sensor exposes the same
+`tariff_name`, `publication_timestamp`, `slot_start`, `slot_end`, `next_change`,
+and time-ordered `forecast` attributes. Forecast slots cover available future
+periods today and tomorrow and are excluded from recorder history.
+
+Public API setup asks for grid product and region; the electricity product is
+inferred from EKZ's integrated-product mapping. Public components are fetched
+separately, while OAuth receives them in one customer-tariff request. The
+global VAT setting applies to consumption components and totals; feed-in prices
+remain VAT-exclusive.
+
+## Breaking
+
+- The entity ID `sensor.<entry_name>_current_price` is renamed to
+  `sensor.<entry_name>_integrated_complete` (for example,
+  `sensor.ekz_400d_current_price` becomes
+  `sensor.ekz_400d_integrated_complete`). Its existing price history is retained.
+- The `none` option is removed from region selection. Select your actual region;
+  use `integrated` when regional fees should be excluded.
+- `feed_in_price` is renamed to `feed_in`.
+- `raw_today`, `raw_tomorrow`, and feed-in `schedule` are replaced by the
+  unrecorded `forecast` array of `[start_timestamp, price]` pairs. Update charts
+  to combine recorded price history with the forecast. Existing recorded
+  forecast attributes are kept because Recorder does not provide a supported
+  attribute-only purge; future forecast values are not recorded.
+
+## Internal
+
+- Existing configuration migrates the tariff selection to grid product and
+  retains region and global VAT. Electricity product is derived from the grid
+  product; no separate user setting is required.
+- New cache records store the integrated value separately from the legacy
+  `price` total (grid + electricity + regional fees). Older cache records
+  remain readable and retain the total; if they lack component values, the
+  integrated value is populated after the next tariff refresh.
+- The entity registry migration renames
+  `sensor.<entry_name>_current_price` to
+  `sensor.<entry_name>_integrated_complete`. The old feed-in entity is
+  renamed from `sensor.<entry_name>_feed_in_price` to
+  `sensor.<entry_name>_feed_in` (for example,
+  `sensor.ekz_400d_feed_in_price` becomes `sensor.ekz_400d_feed_in`).
+
+---
+
 # Version 0.8.0
 
 *Adds forward price arrays and min/max timestamps for charting and automations, and fixes day-scoping bugs in the daily statistics. Backward-compatible — all additions are new attributes on existing sensors, and cached tariff data from 0.7.x still loads.*

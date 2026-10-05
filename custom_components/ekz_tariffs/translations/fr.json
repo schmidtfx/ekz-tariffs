@@ -10,11 +10,20 @@
       },
       "public_config": {
         "title": "Configuration de l'API publique",
-        "description": "Sélectionnez votre plan tarifaire",
+        "description": "Sélectionnez votre produit réseau et votre région ; utilisez le capteur Intégré pour exclure les frais régionaux",
         "data": {
-          "tariff_name": "Nom du tarif",
-          "include_vat": "Inclure la TVA (8,1%)",
-          "regional_fee": "Redevance régionale"
+          "grid_product": "Produit de réseau",
+          "region": "Région",
+          "include_vat": "Inclure la TVA (8,1%)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer les tarifs EKZ",
+        "description": "Sélectionnez les produits de votre tarif public ; utilisez le capteur Intégré pour exclure les frais régionaux",
+        "data": {
+          "grid_product": "Produit de réseau",
+          "region": "Région",
+          "include_vat": "Inclure la TVA (8,1%)"
         }
       },
       "oauth_client_type": {
@@ -42,8 +51,7 @@
         "title": "Configurer les options de tarif client",
         "description": "Configurez comment vous souhaitez afficher vos prix tarifaires spécifiques au client",
         "data": {
-          "include_vat": "Inclure la TVA (8,1%)",
-          "regional_fee": "Redevance régionale"
+          "include_vat": "Inclure la TVA (8,1%)"
         }
       }
     },
@@ -55,17 +63,19 @@
     },
     "abort": {
       "already_configured": "Cette configuration est déjà configurée",
-      "oauth_error": "Échec de l'authentification OAuth"
+      "oauth_error": "Échec de l'authentification OAuth",
+      "reconfigure_successful": "Paramètres des tarifs EKZ mis à jour"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Configurer les options des tarifs EKZ",
-        "description": "Ajuster les paramètres de votre intégration tarifaire",
+        "description": "Ajustez les paramètres du tarif ; utilisez le capteur Intégré pour exclure les frais régionaux",
         "data": {
-          "include_vat": "Inclure la TVA (8,1%)",
-          "regional_fee": "Redevance régionale"
+          "grid_product": "Produit de réseau",
+          "region": "Région",
+          "include_vat": "Inclure la TVA (8,1%)"
         }
       }
     }
@@ -75,8 +85,23 @@
   },
   "entity": {
     "sensor": {
-      "current_price": {
-        "name": "Prix actuel"
+      "electricity": {
+        "name": "Tarif de l’énergie"
+      },
+      "grid": {
+        "name": "Tarif d’utilisation du réseau"
+      },
+      "regional_fees": {
+        "name": "Taxes régionales"
+      },
+      "integrated": {
+        "name": "Tarif de base"
+      },
+      "integrated_complete": {
+        "name": "Tarif de soutirage"
+      },
+      "feed_in": {
+        "name": "Tarif de réinjection"
       },
       "feed_in_price": {
         "name": "Tarif de réinjection"

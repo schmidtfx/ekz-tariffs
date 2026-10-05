@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
@@ -19,17 +20,20 @@ from .const import (
     CONF_AUTH_TYPE,
     CONF_CLIENT_ID,
     CONF_EMS_INSTANCE_ID,
+    CONF_GRID_PRODUCT,
     CONF_INCLUDE_VAT,
+    CONF_REGION,
     CONF_REGIONAL_FEE,
     CONF_TARIFF_NAME,
     DEFAULT_TARIFF_NAME,
     DOMAIN,
+    ELECTRICITY_PRODUCT_BY_GRID_PRODUCT,
     FETCH_HOUR,
     FETCH_MINUTE,
     OAUTH2_AUTHORIZE,
     OAUTH2_TOKEN,
     PLATFORMS,
-    REGIONAL_FEE_NONE,
+    REGION_CHOICES,
     SERVICE_CHECK_EMS_LINK_STATUS,
     SERVICE_REFRESH,
 )
@@ -90,18 +94,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         session = async_get_clientsession(hass)
         api = EkzTariffsOAuthApi(oauth_session, session)
         include_vat = entry.data.get(CONF_INCLUDE_VAT, False)
-        regional_fee = entry.data.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE)
         coordinator = EkzTariffsOAuthCoordinator(
             hass,
+            entry,
             api,
             store,
             ems_instance_id,
             incl_vat=include_vat,
-            regional_fee=regional_fee,
         )
 
         # Create EMS link status coordinator
-        ems_coordinator = EmsLinkStatusCoordinator(hass, api, ems_instance_id)
+        ems_coordinator = EmsLinkStatusCoordinator(hass, entry, api, ems_instance_id)
 
         # Add listener to refresh tariff coordinator when EMS linking completes
         def _handle_ems_link_change() -> None:
@@ -139,7 +142,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "coordinator": coordinator,
             "auth_type": AUTH_TYPE_OAUTH,
             "oauth_session": oauth_session,
-            "tariff_name": None,  # For OAuth, don't populate tariff_name
+            "tariff_name": None,
+            "price_tariff_names": {
+                "electricity": None,
+                "grid": None,
+                "regional_fees": None,
+                "integrated": None,
+                "integrated_complete": None,
+                "feed_in": None,
+            },
             "ems_instance_id": ems_instance_id,
             "device_id": device.id,
             "api": api,  # Pass API for EMS link status sensor
@@ -147,33 +158,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
     else:
         # Public API setup
-        tariff_name = entry.data.get(CONF_TARIFF_NAME, DEFAULT_TARIFF_NAME)
+        grid_product = entry.data.get(CONF_GRID_PRODUCT, DEFAULT_TARIFF_NAME)
+        electricity_product = ELECTRICITY_PRODUCT_BY_GRID_PRODUCT[grid_product]
+        region = entry.data.get(CONF_REGION, REGION_CHOICES[0])
+        configured_region = region in REGION_CHOICES
         include_vat = entry.data.get(CONF_INCLUDE_VAT, False)
-        regional_fee = entry.data.get(CONF_REGIONAL_FEE, REGIONAL_FEE_NONE)
         session = async_get_clientsession(hass)
         api = EkzTariffsApi(session)
         coordinator = EkzTariffsCoordinator(
             hass,
+            entry,
             api,
-            tariff_name,
+            grid_product,
+            region if configured_region else None,
             store,
             incl_vat=include_vat,
-            regional_fee=regional_fee,
         )
 
-        device_name = f"EKZ Tariff {tariff_name}"
+        device_name = f"EKZ Tariff {grid_product}"
         device = device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, entry.entry_id)},
             name=device_name,
             manufacturer="EKZ",
-            model=f"Dynamic Tariff ({tariff_name})",
+            model=f"Dynamic Tariff ({grid_product})",
             configuration_url="https://www.ekz.ch/",
         )
 
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
             "coordinator": coordinator,
-            "tariff_name": tariff_name,
+            "tariff_name": grid_product,
+            "price_tariff_names": {
+                "electricity": f"electricity_{electricity_product}",
+                "grid": f"grid_{grid_product}_inclFees",
+                "regional_fees": (
+                    f"regional_fees_{region}" if configured_region else None
+                ),
+                "integrated": f"integrated_{grid_product}",
+                "integrated_complete": grid_product,
+                "feed_in": "feed_in",
+            },
             "auth_type": AUTH_TYPE_PUBLIC,
             "device_id": device.id,
         }
@@ -186,6 +210,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         fetched_at = saved.get("fetched_at")
         if fetched_at:
             coordinator.last_fetched = dt_util.parse_datetime(fetched_at)
+        publication_timestamp = saved.get("publication_timestamp")
+        if publication_timestamp:
+            coordinator.publication_timestamp = dt_util.parse_datetime(
+                publication_timestamp
+            )
+        else:
+            coordinator.publication_timestamp = coordinator.last_fetched
         coordinator.async_set_updated_data(slots_from_json(saved["slots"]))
 
     await coordinator.async_config_entry_first_refresh()
@@ -238,3 +269,49 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate configuration and entity IDs from prior releases."""
+    if entry.version != 1:
+        return False
+
+    data = dict(entry.data)
+    auth_type = data.get(CONF_AUTH_TYPE, AUTH_TYPE_PUBLIC)
+    grid_product = data.pop(CONF_TARIFF_NAME, DEFAULT_TARIFF_NAME)
+    legacy_region = data.pop(CONF_REGIONAL_FEE, None)
+    if auth_type == AUTH_TYPE_PUBLIC:
+        data.setdefault(CONF_GRID_PRODUCT, grid_product)
+        if isinstance(legacy_region, str) and legacy_region != "none":
+            data[CONF_REGION] = legacy_region.removeprefix("regional_fees_")
+        else:
+            data[CONF_REGION] = "none"
+
+    registry = er.async_get(hass)
+    for old_suffix, new_suffix in (
+        ("current_price", "integrated_complete"),
+        ("feed_in_price", "feed_in"),
+    ):
+        old_unique_id = f"{entry.entry_id}_{old_suffix}"
+        old_entity_id = registry.async_get_entity_id("sensor", DOMAIN, old_unique_id)
+        if old_entity_id is None:
+            continue
+        new_entity_id = old_entity_id
+        legacy_entity_suffix = f"_{old_suffix}"
+        if old_entity_id.endswith(legacy_entity_suffix):
+            new_entity_id = (
+                f"{old_entity_id[: -len(legacy_entity_suffix)]}_{new_suffix}"
+            )
+        registry.async_update_entity(
+            old_entity_id,
+            new_unique_id=f"{entry.entry_id}_{new_suffix}",
+            new_entity_id=new_entity_id,
+            translation_key=new_suffix,
+        )
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data=data,
+        version=2,
+    )
+    return True

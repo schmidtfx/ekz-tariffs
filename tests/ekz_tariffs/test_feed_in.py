@@ -4,30 +4,17 @@ import datetime as dt
 from unittest.mock import patch
 
 import pytest
-from custom_components.ekz_tariffs.api import EkzTariffsApi
-from custom_components.ekz_tariffs.const import (
-    API_BASE,
-    API_TARIFFS_PATH,
-    INTEGRATED_PREFIX,
-)
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.util import dt as dt_util
 
 from tests.conftest import make_slots
 
 
 @pytest.mark.asyncio
-async def test_feed_in_price_sensor_with_schedule(
-    hass_time_zone,
-    mock_config_entry,
-    patch_now,
-    fixed_now,
+async def test_feed_in_sensor_uses_shared_forecast_attributes(
+    hass_time_zone, mock_config_entry, patch_now, fixed_now
 ):
     hass = hass_time_zone
     mock_config_entry.add_to_hass(hass)
-
     start = fixed_now.replace(minute=0, second=0)
     slots = make_slots(
         start,
@@ -43,124 +30,28 @@ async def test_feed_in_price_sensor_with_schedule(
         await hass.async_block_till_done()
 
     registry = er.async_get(hass)
-    entity_id = None
-    for e in registry.entities.values():
-        if (
-            e.config_entry_id == mock_config_entry.entry_id
-            and e.unique_id == f"{mock_config_entry.entry_id}_feed_in_price"
-        ):
-            entity_id = e.entity_id
-
+    entity_id = registry.async_get_entity_id(
+        "sensor", "ekz_tariffs", f"{mock_config_entry.entry_id}_feed_in"
+    )
     assert entity_id is not None
-
     state = hass.states.get(entity_id)
     assert state is not None
-    # fixed_now is at 12:07 -> inside the second slot (12:00-12:15)
     assert float(state.state) == 0.08
 
     attrs = state.attributes
+    assert {
+        "tariff_name",
+        "publication_timestamp",
+        "slot_start",
+        "slot_end",
+        "next_change",
+        "forecast",
+    } <= set(attrs)
     assert attrs["slot_start"] == start.isoformat()
     assert attrs["slot_end"] == (start + dt.timedelta(minutes=15)).isoformat()
-
-    schedule = attrs["schedule"]
-    assert len(schedule) == 4
-    assert schedule[0] == {
-        "start": start.isoformat(),
-        "end": (start + dt.timedelta(minutes=15)).isoformat(),
-        "feed_in_chf_per_kwh": 0.08,
-    }
-    assert schedule[3]["feed_in_chf_per_kwh"] == 0.10
-    assert attrs["next_change"] == (start + dt.timedelta(minutes=15)).isoformat()
-
-
-def test_parse_slots_extracts_feed_in():
-    api = EkzTariffsApi(session=None)
-    base = dt_util.as_local(dt.datetime(2025, 12, 28, 0, 0, 0))
-    data = {
-        "prices": [
-            {
-                "start_timestamp": base.isoformat(),
-                "end_timestamp": (base + dt.timedelta(minutes=15)).isoformat(),
-                "integrated": [{"unit": "CHF_kWh", "value": 0.25}],
-                "feed_in": [{"unit": "CHF_kWh", "value": 0.08}],
-            },
-            {
-                "start_timestamp": (base + dt.timedelta(minutes=15)).isoformat(),
-                "end_timestamp": (base + dt.timedelta(minutes=30)).isoformat(),
-                "integrated": [{"unit": "CHF_kWh", "value": 0.26}],
-                "feed_in": [],
-            },
-        ]
-    }
-
-    slots = api._parse_tariff_slots(data)
-
-    assert len(slots) == 2
-    assert slots[0].price_chf_per_kwh == 0.25
-    assert slots[0].feed_in_chf_per_kwh == 0.08
-    assert slots[1].feed_in_chf_per_kwh is None
-
-
-def test_parse_slots_feed_in_with_vat():
-    api = EkzTariffsApi(session=None)
-    base = dt_util.as_local(dt.datetime(2025, 12, 28, 0, 0, 0))
-    data = {
-        "prices": [
-            {
-                "start_timestamp": base.isoformat(),
-                "end_timestamp": (base + dt.timedelta(minutes=15)).isoformat(),
-                "integrated": [{"unit": "CHF_kWh", "value": 0.25}],
-                "feed_in": [{"unit": "CHF_kWh", "value": 0.10}],
-            }
-        ]
-    }
-
-    slots = api._parse_tariff_slots(data, incl_vat=True)
-
-    from custom_components.ekz_tariffs.const import VAT_RATE
-
-    assert slots[0].feed_in_chf_per_kwh == round(0.10 * (1 + VAT_RATE), 4)
-
-
-@pytest.mark.asyncio
-async def test_fetch_tariffs_keeps_feed_in_with_regional_fee(
-    hass: HomeAssistant, aioclient_mock
-):
-    base = dt_util.as_local(dt.datetime(2025, 12, 28, 0, 0, 0))
-    end = base + dt.timedelta(minutes=30)
-    url = f"{API_BASE}{API_TARIFFS_PATH}"
-
-    aioclient_mock.get(
-        f"{url}?tariff_name=regional_fees_lt500MWh_ZH",
-        json={
-            "prices": [
-                {
-                    "start_timestamp": base.isoformat(),
-                    "end_timestamp": end.isoformat(),
-                    "regional_fees": [{"unit": "CHF_kWh", "value": 0.05}],
-                }
-            ]
-        },
-    )
-    aioclient_mock.get(
-        f"{url}?tariff_name={INTEGRATED_PREFIX}400D",
-        json={
-            "prices": [
-                {
-                    "start_timestamp": base.isoformat(),
-                    "end_timestamp": end.isoformat(),
-                    "integrated": [{"unit": "CHF_kWh", "value": 0.25}],
-                    "feed_in": [{"unit": "CHF_kWh", "value": 0.08}],
-                }
-            ]
-        },
-    )
-
-    api = EkzTariffsApi(session=async_get_clientsession(hass))
-    slots = await api.fetch_tariffs(
-        "400D", base, end, regional_fee="regional_fees_lt500MWh_ZH"
-    )
-
-    assert len(slots) == 1
-    assert slots[0].price_chf_per_kwh == 0.30
-    assert slots[0].feed_in_chf_per_kwh == 0.08
+    assert attrs["forecast"] == [
+        [(start + dt.timedelta(minutes=15 * idx)).isoformat(), price]
+        for idx, price in ((1, 0.08), (2, 0.09), (3, 0.10))
+    ]
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
