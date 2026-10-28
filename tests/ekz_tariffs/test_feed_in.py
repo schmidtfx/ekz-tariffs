@@ -5,7 +5,14 @@ from unittest.mock import patch
 
 import pytest
 from custom_components.ekz_tariffs.api import EkzTariffsApi
+from custom_components.ekz_tariffs.const import (
+    API_BASE,
+    API_TARIFFS_PATH,
+    INTEGRATED_PREFIX,
+)
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
 from tests.conftest import make_slots
@@ -113,3 +120,47 @@ def test_parse_slots_feed_in_with_vat():
     from custom_components.ekz_tariffs.const import VAT_RATE
 
     assert slots[0].feed_in_chf_per_kwh == round(0.10 * (1 + VAT_RATE), 4)
+
+
+@pytest.mark.asyncio
+async def test_fetch_tariffs_keeps_feed_in_with_regional_fee(
+    hass: HomeAssistant, aioclient_mock
+):
+    base = dt_util.as_local(dt.datetime(2025, 12, 28, 0, 0, 0))
+    end = base + dt.timedelta(minutes=30)
+    url = f"{API_BASE}{API_TARIFFS_PATH}"
+
+    aioclient_mock.get(
+        f"{url}?tariff_name=regional_fees_lt500MWh_ZH",
+        json={
+            "prices": [
+                {
+                    "start_timestamp": base.isoformat(),
+                    "end_timestamp": end.isoformat(),
+                    "regional_fees": [{"unit": "CHF_kWh", "value": 0.05}],
+                }
+            ]
+        },
+    )
+    aioclient_mock.get(
+        f"{url}?tariff_name={INTEGRATED_PREFIX}400D",
+        json={
+            "prices": [
+                {
+                    "start_timestamp": base.isoformat(),
+                    "end_timestamp": end.isoformat(),
+                    "integrated": [{"unit": "CHF_kWh", "value": 0.25}],
+                    "feed_in": [{"unit": "CHF_kWh", "value": 0.08}],
+                }
+            ]
+        },
+    )
+
+    api = EkzTariffsApi(session=async_get_clientsession(hass))
+    slots = await api.fetch_tariffs(
+        "400D", base, end, regional_fee="regional_fees_lt500MWh_ZH"
+    )
+
+    assert len(slots) == 1
+    assert slots[0].price_chf_per_kwh == 0.30
+    assert slots[0].feed_in_chf_per_kwh == 0.08

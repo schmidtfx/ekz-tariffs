@@ -33,6 +33,10 @@ Because EKZ publishes 15-minute slots that routinely repeat a price, the span co
 
 `_day_range_local` treated a local day as exactly 24 hours. Combined with the fact that Python does wall-clock arithmetic when both operands share a `ZoneInfo`, the 15-minute bucketing produced 96 buckets on every day — so on the spring-forward day the last four buckets held *the next day's* prices, and on the fall-back day the final hour was dropped. Day bounds are now computed from consecutive local midnights and all bucketing/overlap maths runs in UTC, so a local day yields 92 / 96 / 100 buckets as appropriate. This affects `Average price today/tomorrow` and the `Lowest/Highest Nh window` sensors on those two days per year.
 
+**Feed-in price sensor was unavailable on the public API with a regional fee** ([#15](../../issues/15))
+
+When a regional fee other than `none` was configured, `fetch_tariffs()` rebuilt every slot to fold the fee into the consumption price and dropped `feed_in_chf_per_kwh` in the process. `sensor.<entry_name>_feed_in_price` ended up with no priced slots at all — no state, empty `schedule` — for 4 of the 5 selectable fees. The rebuild now uses `dataclasses.replace`, so any field other than the price carries through untouched. OAuth users were unaffected.
+
 **Feed-in `schedule` attribute is no longer written to the recorder**
 
 The ~192-entry `schedule` list was being stored in history on every state change.

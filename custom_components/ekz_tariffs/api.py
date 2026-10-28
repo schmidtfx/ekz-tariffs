@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -93,9 +93,8 @@ class EkzTariffsApi:
                 if incl_vat:
                     regional_price = regional_price * (1 + VAT_RATE)
                 slots = [
-                    TariffSlot(
-                        start=s.start,
-                        end=s.end,
+                    replace(
+                        s,
                         price_chf_per_kwh=round(
                             s.price_chf_per_kwh + regional_price, 4
                         ),
