@@ -53,7 +53,61 @@ jobs:
             exit 1
           fi
 
+      - name: Extract release notes from CHANGES.md
+        shell: bash
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          export VERSION="${TAG#v}"
+
+          python - <<'PY'
+          import os
+          import re
+
+          version = os.environ["VERSION"]
+          repo_url = os.environ["REPO_URL"]
+
+          with open("CHANGES.md", encoding="utf-8") as f:
+              lines = f.read().splitlines()
+
+          # Section runs from "# Version <version>" until the next top-level
+          # heading or the "---" separator between releases.
+          start = None
+          heading = re.compile(rf"^# Version {re.escape(version)}\b")
+          for i, line in enumerate(lines):
+              if heading.match(line):
+                  start = i + 1
+                  break
+
+          body = ""
+          if start is None:
+              print(f"::warning::No '# Version {version}' section in CHANGES.md; "
+                    "falling back to auto-generated notes only")
+          else:
+              end = len(lines)
+              for i in range(start, len(lines)):
+                  if lines[i].startswith("# ") or lines[i].rstrip() == "---":
+                      end = i
+                      break
+              body = "\n".join(lines[start:end]).strip()
+
+              # CHANGES.md links are relative to the repo root, which resolves
+              # in the file view but not on the release page.
+              body = body.replace("](../../", f"]({repo_url}/")
+
+          # Trailing blank line keeps the auto-generated notes that GitHub
+          # appends from running into the last changelog bullet.
+          with open("RELEASE_NOTES.md", "w", encoding="utf-8") as f:
+              f.write(body + "\n\n" if body else "")
+
+          print(f"Release notes: {len(body)} chars")
+          PY
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
