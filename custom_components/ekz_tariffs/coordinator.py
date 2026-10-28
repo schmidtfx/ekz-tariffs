@@ -72,6 +72,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._store = store
         self._incl_vat = incl_vat
         self._regional_fee = regional_fee
+        self.last_fetched: dt_util.dt.datetime | None = None
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -91,7 +92,13 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 incl_vat=self._incl_vat,
                 regional_fee=self._regional_fee,
             )
-            await self._store.async_save({"slots": slots_to_json(slots)})
+            self.last_fetched = dt_util.now()
+            await self._store.async_save(
+                {
+                    "slots": slots_to_json(slots),
+                    "fetched_at": self.last_fetched.isoformat(),
+                }
+            )
             return slots
         except Exception as err:
             raise UpdateFailed(f"Failed to fetch EKZ tariffs: {err}") from err
@@ -121,6 +128,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
         self._ems_instance_id = ems_instance_id
         self._incl_vat = incl_vat
         self._regional_fee = regional_fee
+        self.last_fetched: dt_util.dt.datetime | None = None
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -140,7 +148,13 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 incl_vat=self._incl_vat,
                 regional_fee=self._regional_fee,
             )
-            await self._store.async_save({"slots": slots_to_json(slots)})
+            self.last_fetched = dt_util.now()
+            await self._store.async_save(
+                {
+                    "slots": slots_to_json(slots),
+                    "fetched_at": self.last_fetched.isoformat(),
+                }
+            )
             return slots
         except ClientResponseError as err:
             # Check if this is an EMS linking error (400 with ems_link in error type)

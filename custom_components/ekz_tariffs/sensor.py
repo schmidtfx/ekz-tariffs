@@ -28,7 +28,8 @@ from .sensor_cheapest_hours import EkzHoursQuantileSensor
 from .sensor_daily_average import EkzAverageTodaySensor, EkzAverageTomorrowSensor
 from .sensor_in_window import EkzInConsecutiveWindowSensor
 from .sensor_window_extreme import EkzWindowExtremeSensor
-from .utils import FusedEvent, fuse_slots
+from .statistics import day_slot_prices
+from .utils import FusedEvent, fuse_slots, next_midnight
 
 
 def _find_current_slot(slots: list[FusedEvent], now: dt.datetime) -> FusedEvent | None:
@@ -61,6 +62,8 @@ class EkzCurrentPriceSensor(SensorEntity):
     _attr_native_unit_of_measurement = "CHF/kWh"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:cash-100"
+    # ~192 floats that change every 15 min would bloat the recorder database.
+    _unrecorded_attributes = frozenset({"raw_today", "raw_tomorrow"})
 
     def __init__(
         self, hass: HomeAssistant, entry_id: str, tariff_name: str | None, coordinator
@@ -72,6 +75,7 @@ class EkzCurrentPriceSensor(SensorEntity):
         self._attr_unique_id = f"{entry_id}_current_price"
         self._attr_name = "Current price"
         self._unsub_boundary: Any | None = None
+        self._unsub_midnight: Any | None = None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
         )
@@ -80,13 +84,40 @@ class EkzCurrentPriceSensor(SensorEntity):
         self.async_on_remove(
             self._coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        self._schedule_midnight_update()
         self._handle_coordinator_update()
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._clear_boundary_timer()
+        self._clear_midnight_timer()
 
     def _clear_boundary_timer(self) -> None:
         if self._unsub_boundary:
             with contextlib.suppress(Exception):
                 self._unsub_boundary()
             self._unsub_boundary = None
+
+    def _clear_midnight_timer(self) -> None:
+        if self._unsub_midnight:
+            with contextlib.suppress(Exception):
+                self._unsub_midnight()
+            self._unsub_midnight = None
+
+    def _schedule_midnight_update(self) -> None:
+        """Roll raw_today/raw_tomorrow over at midnight.
+
+        fuse_slots() merges adjacent equal prices, so when 23:45 and 00:00 share
+        a price there is no price boundary at midnight to piggyback on.
+        """
+        self._clear_midnight_timer()
+
+        async def _on_midnight(_now: dt.datetime) -> None:
+            self.async_write_ha_state()
+            self._schedule_midnight_update()
+
+        self._unsub_midnight = async_track_point_in_time(
+            self.hass, _on_midnight, next_midnight(dt_util.now())
+        )
 
     def _schedule_next_boundary_update(self) -> None:
         self._clear_boundary_timer()
@@ -123,6 +154,13 @@ class EkzCurrentPriceSensor(SensorEntity):
         # avoid float noise; keep sensor stable
         return round(cur.price, 6)
 
+    def _raw_prices(self, day: dt.date) -> list[float | None]:
+        """15-minute prices for `day`, indexed from local midnight."""
+        slots: list[TariffSlot] = self._coordinator.data or []
+        return [
+            round(p, 6) if p is not None else None for p in day_slot_prices(slots, day)
+        ]
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         slots: list[TariffSlot] = self._coordinator.data or []
@@ -132,9 +170,15 @@ class EkzCurrentPriceSensor(SensorEntity):
         cur = _find_current_slot(fused_slots, now)
         next_boundary = _find_next_boundary(fused_slots, now)
 
+        today = dt_util.as_local(now).date()
+        published = getattr(self._coordinator, "last_fetched", None)
+
         attrs: dict[str, Any] = {
-            "schedule_date": dt_util.as_local(now).date().isoformat(),
+            "schedule_date": today.isoformat(),
             "next_change": next_boundary.isoformat() if next_boundary else None,
+            "publication_timestamp": published.isoformat() if published else None,
+            "raw_today": self._raw_prices(today),
+            "raw_tomorrow": self._raw_prices(today + dt.timedelta(days=1)),
         }
 
         if self._tariff_name:
@@ -153,6 +197,10 @@ class EkzCurrentPriceSensor(SensorEntity):
 
 class EkzFeedInPriceSensor(EkzCurrentPriceSensor):
     """Current feed-in price with the full slot schedule as attribute."""
+
+    # Not inherited by union: __init_subclass__ reads this attribute directly,
+    # so the full set has to be restated here.
+    _unrecorded_attributes = frozenset({"raw_today", "raw_tomorrow", "schedule"})
 
     def __init__(
         self, hass: HomeAssistant, entry_id: str, tariff_name: str | None, coordinator
