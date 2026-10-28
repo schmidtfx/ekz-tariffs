@@ -14,7 +14,11 @@ BUCKET_MINUTES = 15
 class DailyStats(TypedDict):
     avg: float | None
     min: float | None
+    min_start: dt.datetime | None
+    min_end: dt.datetime | None
     max: float | None
+    max_start: dt.datetime | None
+    max_end: dt.datetime | None
     median: float | None
     q25: float | None
     q75: float | None
@@ -54,9 +58,14 @@ def daily_stats(slots: list[TariffSlot], day: dt.date) -> DailyStats:
 
     min_p: float | None = None
     max_p: float | None = None
+    # Spans are tracked in UTC and localised at the end: comparing two local
+    # datetimes for contiguity would merge across the repeated DST hour.
+    min_span: tuple[dt.datetime, dt.datetime] | None = None
+    max_span: tuple[dt.datetime, dt.datetime] | None = None
     slots_count = 0
+    vals: list[float] = []
 
-    for s in slots:
+    for s in sorted(slots, key=lambda s: s.start):
         a = max(dt_util.as_utc(s.start), start)
         b = min(dt_util.as_utc(s.end), end)
 
@@ -68,21 +77,39 @@ def daily_stats(slots: list[TariffSlot], day: dt.date) -> DailyStats:
         total_weighted += s.price_chf_per_kwh * seconds
 
         p = float(s.price_chf_per_kwh)
-        min_p = p if min_p is None else min(min_p, p)
-        max_p = p if max_p is None else max(max_p, p)
+        vals.append(p)
+
+        # EKZ publishes 15-minute slots that routinely repeat a price (hence
+        # fuse_slots()), so an extreme usually spans a block. Keep the earliest
+        # such block and grow it while the price holds; `a`/`b` are clamped to
+        # the day, so a slot straddling midnight reports only its in-day part.
+        if min_p is None or p < min_p:
+            min_p = p
+            min_span = (a, b)
+        elif p == min_p and min_span is not None and a == min_span[1]:
+            min_span = (min_span[0], b)
+
+        if max_p is None or p > max_p:
+            max_p = p
+            max_span = (a, b)
+        elif p == max_p and max_span is not None and a == max_span[1]:
+            max_span = (max_span[0], b)
 
         slots_count += 1
 
     avg = (total_weighted / total_seconds) if total_seconds > 0 else None
     covered_minutes = round(total_seconds / 60.0)
 
-    vals = [s.price_chf_per_kwh for s in slots if s.price_chf_per_kwh is not None]
     vals.sort()
 
     return {
         "avg": avg,
         "min": min_p,
+        "min_start": dt_util.as_local(min_span[0]) if min_span else None,
+        "min_end": dt_util.as_local(min_span[1]) if min_span else None,
         "max": max_p,
+        "max_start": dt_util.as_local(max_span[0]) if max_span else None,
+        "max_end": dt_util.as_local(max_span[1]) if max_span else None,
         "median": _median(vals),
         "q25": _quantile(vals, q=0.25),
         "q75": _quantile(vals, q=0.75),

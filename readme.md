@@ -228,7 +228,9 @@ series:
 - **Attributes**:
   - `day`: Date for which the average is calculated
   - `min_price_chf_per_kwh`: Minimum price of the day
+  - `min_price_start` / `min_price_end`: Start and end of the cheapest block of the day (the earliest one if the price occurs more than once)
   - `max_price_chf_per_kwh`: Maximum price of the day
+  - `max_price_start` / `max_price_end`: Start and end of the most expensive block of the day (the earliest one if the price occurs more than once)
   - `median_price_chf_per_kwh`: Median price of the day
   - `q25_price_chf_per_kwh`: 25th percentile price
   - `q75_price_chf_per_kwh`: 75th percentile price

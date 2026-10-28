@@ -14,7 +14,20 @@ The forward price data was already being fetched (the coordinator pulls today + 
 
 The arrays are registered as unrecorded attributes, so they do not grow the recorder database despite changing every 15 minutes. `readme.md` has a ready-to-use apexcharts-card example.
 
+**Timestamps for the daily minimum and maximum price** ([#10](../../issues/10))
+
+`sensor.<entry_name>_average_price_today` (and `..._tomorrow`) already reported `min_price_chf_per_kwh` / `max_price_chf_per_kwh`, but not *when* those prices occur, so answering "when is it cheapest today" meant re-deriving it from the raw arrays. Four new attributes carry the extremes' slot bounds as local ISO timestamps:
+
+- `min_price_start` / `min_price_end`
+- `max_price_start` / `max_price_end`
+
+Because EKZ publishes 15-minute slots that routinely repeat a price, the span covers the whole contiguous block at the extreme price rather than just its first quarter hour — a flat cheap night reads `02:00` → `04:00`, not `02:00` → `02:15`. If the price occurs again later in the day the earliest block wins, and a block straddling midnight is clamped, so the timestamps always fall inside the sensor's `day`.
+
 ## Fixes
+
+**Median and quartiles on the average sensor included the next day's prices**
+
+`daily_stats()` scoped `avg`/`min`/`max` to the requested day but computed `median_price_chf_per_kwh`, `q25_price_chf_per_kwh` and `q75_price_chf_per_kwh` over *every* slot the coordinator held. Once EKZ published tomorrow's tariffs (typically 18:00), today's quantiles silently became two-day quantiles. All quantiles are now taken from the same day-scoped slots as the rest of the statistics.
 
 **Daily statistics were off by an hour on DST transition days**
 
