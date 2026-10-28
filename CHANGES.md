@@ -1,4 +1,6 @@
-# Unreleased
+# Version 0.8.0
+
+*Adds forward price arrays and min/max timestamps for charting and automations, and fixes day-scoping bugs in the daily statistics. Backward-compatible — all additions are new attributes on existing sensors, and cached tariff data from 0.7.x still loads.*
 
 ## New Features
 
