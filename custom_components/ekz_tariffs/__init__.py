@@ -9,6 +9,7 @@ from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.util import dt as dt_util
 
 from .api import EkzTariffsApi, EkzTariffsOAuthApi
 from .const import (
@@ -180,6 +181,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Load saved data
     saved = await store.async_load()
     if saved and "slots" in saved:
+        # Restore the fetch time first so the initial state already carries a
+        # correct publication_timestamp. Absent on caches written before 0.8.0.
+        fetched_at = saved.get("fetched_at")
+        if fetched_at:
+            coordinator.last_fetched = dt_util.parse_datetime(fetched_at)
         coordinator.async_set_updated_data(slots_from_json(saved["slots"]))
 
     await coordinator.async_config_entry_first_refresh()

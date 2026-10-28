@@ -23,16 +23,31 @@ class DailyStats(TypedDict):
 
 
 def _day_range_local(day: dt.date) -> tuple[dt.datetime, dt.datetime]:
-    start = dt_util.start_of_local_day(
-        dt_util.as_local(dt.datetime.combine(day, dt.time.min))
-    )
-    end = start + dt.timedelta(days=1)
+    """Local midnight-to-midnight bounds for `day`.
+
+    The end is the *next local midnight*, not start + 24h, so DST days span the
+    real 23h/25h instead of bleeding into (or stopping short of) the next day.
+    """
+    start = dt_util.start_of_local_day(day)
+    end = dt_util.start_of_local_day(day + dt.timedelta(days=1))
     return start, end
+
+
+def _advance(moment: dt.datetime, delta: dt.timedelta) -> dt.datetime:
+    """Add real elapsed time to a local datetime, re-normalising across DST.
+
+    Adding a timedelta to an aware datetime keeps the original UTC offset
+    (wall-clock arithmetic), so a plain `+` would skip or repeat the DST hour.
+    """
+    return dt_util.as_local(dt_util.as_utc(moment) + delta)
 
 
 def daily_stats(slots: list[TariffSlot], day: dt.date) -> DailyStats:
     """Time-weighted average + min/max for a local day, based on overlap with that day."""
-    start, end = _day_range_local(day)
+    day_start, day_end = _day_range_local(day)
+    # Overlap maths must be in UTC; see the note in bucket_prices().
+    start = dt_util.as_utc(day_start)
+    end = dt_util.as_utc(day_end)
 
     total_weighted = 0.0
     total_seconds = 0.0
@@ -42,8 +57,8 @@ def daily_stats(slots: list[TariffSlot], day: dt.date) -> DailyStats:
     slots_count = 0
 
     for s in slots:
-        a = max(s.start, start)
-        b = min(s.end, end)
+        a = max(dt_util.as_utc(s.start), start)
+        b = min(dt_util.as_utc(s.end), end)
 
         if b <= a:
             continue
@@ -89,27 +104,46 @@ def bucket_prices(
     day_start, day_end = _day_range_local(day)
     slots_sorted = sorted(slots, key=lambda s: s.start)
 
+    # Walk the day in UTC. Comparing or incrementing datetimes that share the
+    # same ZoneInfo falls back to wall-clock arithmetic, which would silently
+    # skip (or repeat) an hour on DST transition days.
+    bounds = [
+        (dt_util.as_utc(s.start), dt_util.as_utc(s.end), s.price_chf_per_kwh)
+        for s in slots_sorted
+    ]
+
     prices: list[float | None] = []
-    t = day_start
+    t = dt_util.as_utc(day_start)
+    end = dt_util.as_utc(day_end)
 
     i = 0
-    n = len(slots_sorted)
+    n = len(bounds)
 
     step = dt.timedelta(minutes=BUCKET_MINUTES)
-    while t < day_end:
-        while i < n and slots_sorted[i].end <= t:
+    while t < end:
+        while i < n and bounds[i][1] <= t:
             i += 1
 
         price: float | None = None
         if i < n:
-            s = slots_sorted[i]
-            if s.start <= t < s.end:
-                price = float(s.price_chf_per_kwh)
+            s_start, s_end, s_price = bounds[i]
+            if s_start <= t < s_end:
+                price = float(s_price)
 
         prices.append(price)
         t += step
 
     return prices, day_start
+
+
+def day_slot_prices(slots: list[TariffSlot], day: dt.date) -> list[float | None]:
+    """15-minute prices for a local day, indexed from local midnight.
+
+    Length is 96 on a normal day, 92/100 on DST transition days. Buckets with no
+    published price are None.
+    """
+    prices, _ = bucket_prices(slots, day)
+    return prices
 
 
 def _quantile(sorted_vals: list[float], q: float) -> float | None:
@@ -196,6 +230,6 @@ def rolling_window_extreme(
     if best_idx is None or best_avg is None:
         return None
 
-    start = day_start + dt.timedelta(minutes=best_idx * BUCKET_MINUTES)
-    end = start + dt.timedelta(minutes=window_minutes)
+    start = _advance(day_start, dt.timedelta(minutes=best_idx * BUCKET_MINUTES))
+    end = _advance(start, dt.timedelta(minutes=window_minutes))
     return WindowResult(start=start, end=end, avg=best_avg)

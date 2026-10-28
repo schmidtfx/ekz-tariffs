@@ -103,7 +103,7 @@ This integration provides multiple sensors to help you monitor and optimize your
 
 | Sensor Name | Type | Unit | Enabled by Default | Description |
 | :---------- | :--- | :--- | :----------------- | :---------- |
-| Current price | Sensor | CHF/kWh | ✅ | Current electricity price |
+| Current price | Sensor | CHF/kWh | ✅ | Current electricity price, plus raw 15-min price arrays for today and tomorrow |
 | Feed-in price | Sensor | CHF/kWh | ✅ | Current feed-in price with full slot schedule as attribute |
 | Next change | Sensor | Timestamp | ✅ | When the price will next change |
 | Average price today | Sensor | CHF/kWh | ✅ | Average price for today with statistics |
@@ -137,11 +137,66 @@ This integration provides multiple sensors to help you monitor and optimize your
 - **Unit**: CHF/kWh
 - **Description**: Shows the current electricity price
 - **Attributes**:
+  - `raw_today`: Flat list of 15-minute prices for today, indexed from local midnight
+  - `raw_tomorrow`: Same for tomorrow, `null` until EKZ publishes (typically by 18:00)
+  - `publication_timestamp`: When the price data was last fetched from EKZ
   - `schedule_date`: Date of the current schedule
   - `next_change`: Timestamp when the price will next change
   - `slot_start`: Start time of the current price slot
   - `slot_end`: End time of the current price slot
   - `tariff_name`: Name of your tariff plan (if using Public API)
+
+##### Raw price arrays
+
+`raw_today` and `raw_tomorrow` are plain lists of prices, one per 15-minute slot, starting at
+local midnight. Index `i` therefore covers `00:00 + i * 15min`:
+
+```yaml
+publication_timestamp: '2026-10-28T18:30:12+01:00'
+raw_today: [0.21195, 0.20723, 0.20677, ...]
+raw_tomorrow: [null, null, null, ...]
+```
+
+Two things to handle when consuming them:
+
+- **Unpublished slots are `null`.** `raw_tomorrow` is a full-length list of `null` until EKZ
+  publishes the next day, so filter on `typeof v === "number"` rather than assuming numbers.
+- **DST days are not 96 entries.** On the spring-forward day the list has 92 entries and on the
+  fall-back day 100. Derive timestamps by adding `i * 15min` to local midnight instead of
+  hard-coding a length.
+
+These arrays are excluded from the recorder, so they do not bloat your history database — but it
+also means they are not available in historical states, only on the current state.
+
+Example [apexcharts-card](https://github.com/RomRider/apexcharts-card) config showing today and
+tomorrow:
+
+```yaml
+type: custom:apexcharts-card
+graph_span: 48h
+span:
+  start: day
+header:
+  show: true
+  title: EKZ Dynamic Prices
+series:
+  - entity: sensor.ekz_400d_current_price
+    type: column
+    data_generator: |
+      const midnight = new Date(); midnight.setHours(0,0,0,0);
+      const slot = 15 * 60 * 1000;
+      const today = entity.attributes.raw_today || [];
+      const tomorrow = entity.attributes.raw_tomorrow || [];
+      const out = [];
+      today.forEach((v, i) => {
+        if (typeof v === "number") out.push([midnight.getTime() + i * slot, v]);
+      });
+      const t0 = midnight.getTime() + today.length * slot;
+      tomorrow.forEach((v, i) => {
+        if (typeof v === "number") out.push([t0 + i * slot, v]);
+      });
+      return out;
+```
 
 #### Feed-in Price
 - **Entity ID**: `sensor.<entry_name>_feed_in_price`

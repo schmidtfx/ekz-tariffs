@@ -1,3 +1,65 @@
+# Unreleased
+
+## New Features
+
+**Raw 15-minute price arrays on the Current price sensor** ([#4](../../issues/4))
+
+The forward price data was already being fetched (the coordinator pulls today + tomorrow) but was only reachable through the `hourly_prices` attribute on the quantile binary sensors — which is today-only and keyed by hour `0-23`. At 22:00 that leaves two usable data points, so charting "the next 12h" or computing a dishwasher delay across midnight wasn't possible.
+
+`sensor.<entry_name>_current_price` now carries three new attributes:
+
+- `raw_today` — flat list of 15-minute prices for today, indexed from local midnight.
+- `raw_tomorrow` — the same for tomorrow, a full-length list of `null` until EKZ publishes (typically by 18:00).
+- `publication_timestamp` — when the data was last fetched from EKZ, persisted across restarts.
+
+The arrays are registered as unrecorded attributes, so they do not grow the recorder database despite changing every 15 minutes. `readme.md` has a ready-to-use apexcharts-card example.
+
+## Fixes
+
+**Daily statistics were off by an hour on DST transition days**
+
+`_day_range_local` treated a local day as exactly 24 hours. Combined with the fact that Python does wall-clock arithmetic when both operands share a `ZoneInfo`, the 15-minute bucketing produced 96 buckets on every day — so on the spring-forward day the last four buckets held *the next day's* prices, and on the fall-back day the final hour was dropped. Day bounds are now computed from consecutive local midnights and all bucketing/overlap maths runs in UTC, so a local day yields 92 / 96 / 100 buckets as appropriate. This affects `Average price today/tomorrow` and the `Lowest/Highest Nh window` sensors on those two days per year.
+
+**Feed-in `schedule` attribute is no longer written to the recorder**
+
+The ~192-entry `schedule` list was being stored in history on every state change.
+
+## Internal
+
+- New `statistics.day_slot_prices()` returns the 15-minute price list for a local day; `bucket_prices()` now walks the day in UTC and `_advance()` re-normalises offsets across DST.
+- Coordinators record `last_fetched` and persist it as `fetched_at` in the per-entry `Store`; the key is additive, so existing caches load unchanged.
+- `EkzCurrentPriceSensor` schedules an explicit midnight timer — `fuse_slots()` merges adjacent equal prices, so there is not always a price boundary at midnight to trigger the day rollover.
+- New tests: `tests/ekz_tariffs/test_raw_prices.py` and `tests/ekz_tariffs/test_statistics.py` (the first coverage of `statistics.py`).
+
+---
+
+# Version 0.7.0
+
+*Adds solar feed-in tariffs. Backward-compatible — existing installations pick up the new sensor automatically, and cached tariff data from 0.6.x still loads.*
+
+## New Features
+
+**Feed-in price sensor** ([#11](../../pull/11))
+
+EKZ returns a `feed_in` component alongside the consumption price, but the integration was discarding it. It is now parsed and surfaced through a new sensor:
+
+- `sensor.<entry_name>_feed_in_price` — the current feed-in tariff (Einspeisevergütung), enabled by default, updating at each 15-minute slot boundary.
+- A `schedule` attribute carries the **full today + tomorrow slot schedule** as a list of `{start, end, feed_in_chf_per_kwh}` entries, so the forward feed-in curve can be charted directly.
+- VAT follows the existing `include_vat` option, applied to the feed-in value on both the public and OAuth code paths.
+- Entity name translated in en / de / fr / it.
+
+Works with both authentication types: the OAuth `/customerTariffs` response already includes `feed_in`, and the public `/tariffs` response is parsed the same way.
+
+## Internal
+
+- `TariffSlot` gains an optional `feed_in_chf_per_kwh` field, defaulting to `None` so slots without feed-in data (and older cached entries) remain valid.
+- New `_extract_chf_kwh()` helper in `api.py` replaces three hand-rolled copies of the "find the component whose `unit` is `CHF_kWh`" loop across the integrated, regional-fee and feed-in parsers.
+- The per-entry `Store` now persists `feed_in` with each slot. The key is read with `.get()`, so caches written by 0.6.x load without a storage version bump.
+- `EkzFeedInPriceSensor` subclasses `EkzCurrentPriceSensor` but overrides boundary scheduling: `fuse_slots()` keys on the consumption price, so feed-in boundaries have to be derived from the slots directly.
+- New `tests/ekz_tariffs/test_feed_in.py` covers the sensor end-to-end plus feed-in parsing with and without VAT; `make_slots()` in `conftest.py` takes an optional parallel `feed_in` list.
+
+---
+
 # Version 0.6.1
 
 *Follow-up fix that makes public / PKCE OAuth clients actually configurable — the 0.6.0 approach didn't work end-to-end.*
