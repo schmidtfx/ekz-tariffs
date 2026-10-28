@@ -15,6 +15,10 @@ from .statistics import daily_stats
 from .utils import next_midnight
 
 
+def _iso(moment: dt.datetime | None) -> str | None:
+    return moment.isoformat() if moment is not None else None
+
+
 class _EkzDailyAverageSensor(SensorEntity):
     _attr_native_unit_of_measurement = "CHF/kWh"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -98,9 +102,13 @@ class _EkzDailyAverageSensor(SensorEntity):
         attrs["min_price_chf_per_kwh"] = (
             round(stats["min"], 6) if stats["min"] is not None else None
         )
+        attrs["min_price_start"] = _iso(stats["min_start"])
+        attrs["min_price_end"] = _iso(stats["min_end"])
         attrs["max_price_chf_per_kwh"] = (
             round(stats["max"], 6) if stats["max"] is not None else None
         )
+        attrs["max_price_start"] = _iso(stats["max_start"])
+        attrs["max_price_end"] = _iso(stats["max_end"])
         attrs["median_price_chf_per_kwh"] = (
             round(stats["median"], 6) if stats["median"] is not None else None
         )
