@@ -31,6 +31,7 @@ GRID_PRODUCT_CHOICES = [
     "16L",
     "16LS",
 ]
+# EKZ maps each grid product to the electricity tariff used in its total price.
 ELECTRICITY_PRODUCT_BY_GRID_PRODUCT = {
     "400D": "dynamic",
     "400F": "standard",

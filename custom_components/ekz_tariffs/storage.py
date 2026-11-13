@@ -15,6 +15,7 @@ def slots_to_json(slots: list[TariffSlot]) -> list[dict[str, Any]]:
         {
             "start": s.start.isoformat(),
             "end": s.end.isoformat(),
+            # Keep "price" as the total for compatibility with existing cache data.
             "price": s.price_chf_per_kwh,
             "integrated": s.integrated_chf_per_kwh,
             "electricity": s.electricity_chf_per_kwh,
@@ -39,6 +40,7 @@ def slots_from_json(raw: list[dict[str, Any]]) -> list[TariffSlot]:
         regional_fees = item.get("regional_fees")
         integrated = item.get("integrated")
         if integrated is None and electricity is not None and grid is not None:
+            # Older/newer cache records may lack the explicit integrated subtotal.
             integrated = round(float(electricity) + float(grid), 4)
         out.append(
             TariffSlot(

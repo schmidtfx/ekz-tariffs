@@ -47,6 +47,7 @@ class EkzTariffsCalendar(CalendarEntity):
         self.async_on_remove(
             self._coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        # Cancel scheduled callbacks when HA unloads this entity.
         self.async_on_remove(self._clear_scheduled_callbacks)
         self._handle_coordinator_update()
 

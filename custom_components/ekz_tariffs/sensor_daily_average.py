@@ -51,6 +51,7 @@ class _EkzDailyAverageSensor(SensorEntity):
 
     async def async_added_to_hass(self):
         self.async_on_remove(self._coordinator.async_add_listener(self._handle_update))
+        # Midnight callbacks are rescheduled on refresh and cancelled on unload.
         self.async_on_remove(self._clear_midnight_timer)
         self._schedule_midnight_update()
         self._handle_update()

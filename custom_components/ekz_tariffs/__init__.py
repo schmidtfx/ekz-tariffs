@@ -159,6 +159,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         # Public API setup
         grid_product = entry.data.get(CONF_GRID_PRODUCT, DEFAULT_TARIFF_NAME)
+        # EKZ defines the matching electricity tariff from the selected grid product.
         electricity_product = ELECTRICITY_PRODUCT_BY_GRID_PRODUCT[grid_product]
         region = entry.data.get(CONF_REGION, REGION_CHOICES[0])
         configured_region = region in REGION_CHOICES
@@ -216,6 +217,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 publication_timestamp
             )
         else:
+            # Older cache files stored fetch time but not EKZ's publication time.
             coordinator.publication_timestamp = coordinator.last_fetched
         coordinator.async_set_updated_data(slots_from_json(saved["slots"]))
 
@@ -281,6 +283,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     grid_product = data.pop(CONF_TARIFF_NAME, DEFAULT_TARIFF_NAME)
     legacy_region = data.pop(CONF_REGIONAL_FEE, None)
     if auth_type == AUTH_TYPE_PUBLIC:
+        # Grid product and region are public-API inputs; OAuth derives tariffs itself.
         data.setdefault(CONF_GRID_PRODUCT, grid_product)
         if isinstance(legacy_region, str) and legacy_region != "none":
             data[CONF_REGION] = legacy_region.removeprefix("regional_fees_")
@@ -288,6 +291,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data[CONF_REGION] = "none"
 
     registry = er.async_get(hass)
+    # Preserve existing Recorder history while moving the sensors to their new IDs.
     for old_suffix, new_suffix in (
         ("current_price", "integrated_complete"),
         ("feed_in_price", "feed_in"),

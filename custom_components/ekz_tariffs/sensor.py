@@ -32,6 +32,7 @@ from .utils import FusedEvent, fuse_slots, next_midnight
 
 
 def _find_current_slot(slots: list[FusedEvent], now: dt.datetime) -> FusedEvent | None:
+    # UTC comparisons avoid ambiguous or skipped local times on DST transitions.
     now_utc = dt_util.as_utc(now)
     for s in slots:
         if dt_util.as_utc(s.start) <= now_utc < dt_util.as_utc(s.end):
@@ -150,6 +151,7 @@ class EkzPriceSensor(SensorEntity):
 
     def _value(self, slot: TariffSlot) -> float | None:
         if self._component == "integrated":
+            # This subtotal excludes regional fees; the complete price includes them.
             return slot.integrated_chf_per_kwh
         if self._component == "integrated_complete":
             return slot.price_chf_per_kwh
@@ -161,6 +163,7 @@ class EkzPriceSensor(SensorEntity):
         for slot in slots:
             price = self._value(slot)
             if price is None:
+                # Missing publication breaks a run; never bridge over unknown prices.
                 if current is not None:
                     fused.append(current)
                     current = None
@@ -209,6 +212,7 @@ class EkzPriceSensor(SensorEntity):
         return round(cur.price, 6)
 
     def _forecast(self, slots: list[TariffSlot], now: dt.datetime) -> list[list[Any]]:
+        # Only priced slots beginning in the future are exposed as forecast data.
         return [
             [slot.start.isoformat(), round(price, 6)]
             for slot in slots

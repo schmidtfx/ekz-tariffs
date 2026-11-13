@@ -104,6 +104,7 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 incl_vat=self._incl_vat,
             )
             self.last_fetched = dt_util.now()
+            # Fall back to fetch time when the API omits its publication timestamp.
             self.publication_timestamp = (
                 self._api.publication_timestamp or self.last_fetched
             )
@@ -164,6 +165,7 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 incl_vat=self._incl_vat,
             )
             self.last_fetched = dt_util.now()
+            # Keep attribute behavior consistent with public API responses.
             self.publication_timestamp = (
                 self._api.publication_timestamp or self.last_fetched
             )

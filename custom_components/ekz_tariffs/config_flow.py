@@ -38,6 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _region_default(region: str | None) -> str:
+    # Legacy entries may store "none", which is no longer a selectable region.
     return region if region in REGION_CHOICES else REGION_CHOICES[0]
 
 
@@ -329,7 +330,7 @@ class EkzTariffsConfigFlow(OAuth2FlowHandler, config_entries.ConfigFlow, domain=
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Collect updated product selections for a migrated entry."""
+        """Collect public tariff selections missing from migrated entries."""
         entry = self._get_reconfigure_entry()
         is_public = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PUBLIC) == AUTH_TYPE_PUBLIC
 
@@ -340,6 +341,7 @@ class EkzTariffsConfigFlow(OAuth2FlowHandler, config_entries.ConfigFlow, domain=
             return self.async_abort(reason="reconfigure_successful")
 
         if is_public:
+            # OAuth tariffs are customer-specific, so only public entries select products.
             schema = vol.Schema(
                 {
                     vol.Required(
@@ -393,6 +395,7 @@ class EkzTariffsOptionsFlow(config_entries.OptionsFlow):
                 CONF_INCLUDE_VAT: user_input[CONF_INCLUDE_VAT],
             }
             if self.config_entry.data.get(CONF_AUTH_TYPE) != AUTH_TYPE_OAUTH:
+                # Do not persist public-only product choices on OAuth entries.
                 data.update(
                     {
                         CONF_GRID_PRODUCT: user_input[CONF_GRID_PRODUCT],
