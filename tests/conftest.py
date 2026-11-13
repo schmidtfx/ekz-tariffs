@@ -4,7 +4,13 @@ import datetime as dt
 from unittest.mock import patch
 
 import pytest
-from custom_components.ekz_tariffs.const import CONF_TARIFF_NAME, DOMAIN
+from custom_components.ekz_tariffs.const import (
+    AUTH_TYPE_PUBLIC,
+    CONF_AUTH_TYPE,
+    CONF_GRID_PRODUCT,
+    CONF_REGION,
+    DOMAIN,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -20,8 +26,13 @@ def mock_config_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         title="EKZ 400D",
-        data={CONF_TARIFF_NAME: "400D"},
-        unique_id="ekz_tariffs_400D",
+        data={
+            CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
+            CONF_GRID_PRODUCT: "400D",
+            CONF_REGION: "lt500MWh_ZH",
+        },
+        unique_id="ekz_tariffs_public_400D",
+        version=2,
     )
 
 
@@ -41,7 +52,16 @@ def make_slots(start: dt.datetime, prices: list[float], minutes=15, feed_in=None
         nxt = cur + dt.timedelta(minutes=minutes)
         fi = feed_in[i] if feed_in is not None else None
         out.append(
-            TariffSlot(start=cur, end=nxt, price_chf_per_kwh=p, feed_in_chf_per_kwh=fi)
+            TariffSlot(
+                start=cur,
+                end=nxt,
+                price_chf_per_kwh=p,
+                integrated_chf_per_kwh=p,
+                electricity_chf_per_kwh=p,
+                grid_chf_per_kwh=0.0,
+                regional_fees_chf_per_kwh=0.0,
+                feed_in_chf_per_kwh=fi,
+            )
         )
         cur = nxt
     return out

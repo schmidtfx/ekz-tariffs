@@ -10,11 +10,20 @@
       },
       "public_config": {
         "title": "Configurazione API pubblica",
-        "description": "Seleziona il tuo piano tariffario",
+        "description": "Seleziona il prodotto di rete e la regione; usa il sensore Integrato per escludere le tariffe regionali",
         "data": {
-          "tariff_name": "Nome tariffa",
-          "include_vat": "Includi IVA (8,1%)",
-          "regional_fee": "Supplemento regionale"
+          "grid_product": "Prodotto rete",
+          "region": "Regione",
+          "include_vat": "Includi IVA (8,1%)"
+        }
+      },
+      "reconfigure": {
+        "title": "Riconfigura tariffe EKZ",
+        "description": "Seleziona i prodotti per la tariffa pubblica; usa il sensore Integrato per escludere le tariffe regionali",
+        "data": {
+          "grid_product": "Prodotto rete",
+          "region": "Regione",
+          "include_vat": "Includi IVA (8,1%)"
         }
       },
       "oauth_client_type": {
@@ -42,8 +51,7 @@
         "title": "Configura opzioni tariffa cliente",
         "description": "Configura come desideri visualizzare i prezzi tariffari specifici del cliente",
         "data": {
-          "include_vat": "Includi IVA (8,1%)",
-          "regional_fee": "Supplemento regionale"
+          "include_vat": "Includi IVA (8,1%)"
         }
       }
     },
@@ -55,17 +63,19 @@
     },
     "abort": {
       "already_configured": "Questa configurazione è già impostata",
-      "oauth_error": "Autenticazione OAuth non riuscita"
+      "oauth_error": "Autenticazione OAuth non riuscita",
+      "reconfigure_successful": "Impostazioni delle tariffe EKZ aggiornate"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Configura opzioni tariffe EKZ",
-        "description": "Regola le impostazioni per la tua integrazione tariffaria",
+        "description": "Modifica le impostazioni della tariffa; usa il sensore Integrato per escludere le tariffe regionali",
         "data": {
-          "include_vat": "Includi IVA (8,1%)",
-          "regional_fee": "Supplemento regionale"
+          "grid_product": "Prodotto rete",
+          "region": "Regione",
+          "include_vat": "Includi IVA (8,1%)"
         }
       }
     }
@@ -75,8 +85,23 @@
   },
   "entity": {
     "sensor": {
-      "current_price": {
-        "name": "Prezzo attuale"
+      "electricity": {
+        "name": "Tariffa energetica"
+      },
+      "grid": {
+        "name": "Tariffa di utilizzo della rete"
+      },
+      "regional_fees": {
+        "name": "Oneri regionali"
+      },
+      "integrated": {
+        "name": "Tariffa di base"
+      },
+      "integrated_complete": {
+        "name": "Tariffa di prelievo"
+      },
+      "feed_in": {
+        "name": "Tariffa di immissione"
       },
       "feed_in_price": {
         "name": "Tariffa d'immissione"

@@ -63,6 +63,8 @@ class EkzHoursQuantileSensor(BinarySensorEntity):
         self.async_on_remove(
             self._coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        # Avoid leaving boundary callbacks active after entity removal.
+        self.async_on_remove(self._clear_boundary_timer)
         self._handle_coordinator_update()
 
     def _clear_boundary_timer(self) -> None:

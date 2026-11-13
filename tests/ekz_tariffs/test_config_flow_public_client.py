@@ -4,16 +4,20 @@ import pytest
 from custom_components.ekz_tariffs.const import (
     AUTH_IMPL_PUBLIC_CLIENT,
     AUTH_TYPE_OAUTH,
+    AUTH_TYPE_PUBLIC,
     CONF_AUTH_TYPE,
     CONF_CLIENT_ID,
+    CONF_GRID_PRODUCT,
+    CONF_INCLUDE_VAT,
     CONF_OAUTH_CLIENT_TYPE,
+    CONF_REGION,
     DOMAIN,
     OAUTH_CLIENT_TYPE_CONFIDENTIAL,
     OAUTH_CLIENT_TYPE_PUBLIC,
 )
 from custom_components.ekz_tariffs.oauth_impl import EKZOAuth2Implementation
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers import config_entry_oauth2_flow
 
 
@@ -95,3 +99,51 @@ async def test_confidential_choice_aborts_without_credentials(hass: HomeAssistan
     )
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] in {"missing_credentials", "missing_configuration"}
+
+
+@pytest.mark.asyncio
+async def test_public_flow_stores_grid_region_and_global_vat(hass: HomeAssistant):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "public_config"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_GRID_PRODUCT: "400D",
+            CONF_REGION: "lt500MWh_ZH",
+            CONF_INCLUDE_VAT: True,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC,
+        CONF_GRID_PRODUCT: "400D",
+        CONF_REGION: "lt500MWh_ZH",
+        CONF_INCLUDE_VAT: True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_flow_rejects_none_region(hass: HomeAssistant):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_AUTH_TYPE: AUTH_TYPE_PUBLIC}
+    )
+
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_GRID_PRODUCT: "400D",
+                CONF_REGION: "none",
+                CONF_INCLUDE_VAT: False,
+            },
+        )

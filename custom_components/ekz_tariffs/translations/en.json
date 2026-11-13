@@ -10,11 +10,20 @@
       },
       "public_config": {
         "title": "Public API Configuration",
-        "description": "Select your tariff plan",
+        "description": "Select your grid product and regional-fee region; use the Integrated sensor when you want to exclude regional fees",
         "data": {
-          "tariff_name": "Tariff Name",
-          "include_vat": "Include VAT (8.1%)",
-          "regional_fee": "Regional fee surcharge"
+          "grid_product": "Grid product",
+          "region": "Region",
+          "include_vat": "Include VAT (8.1%)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure EKZ Tariffs",
+        "description": "Select products for your public tariff; use the Integrated sensor when you want to exclude regional fees",
+        "data": {
+          "grid_product": "Grid product",
+          "region": "Region",
+          "include_vat": "Include VAT (8.1%)"
         }
       },
       "oauth_client_type": {
@@ -42,8 +51,7 @@
         "title": "Configure Customer Tariff Options",
         "description": "Configure how you want to display your customer-specific tariff prices",
         "data": {
-          "include_vat": "Include VAT (8.1%)",
-          "regional_fee": "Include regional fees"
+          "include_vat": "Include VAT (8.1%)"
         }
       }
     },
@@ -55,17 +63,19 @@
     },
     "abort": {
       "already_configured": "This configuration is already set up",
-      "oauth_error": "OAuth authentication failed"
+      "oauth_error": "OAuth authentication failed",
+      "reconfigure_successful": "EKZ tariff settings updated"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Configure EKZ Tariffs Options",
-        "description": "Adjust settings for your tariff integration",
+        "description": "Adjust tariff settings; use the Integrated sensor when you want to exclude regional fees",
         "data": {
-          "include_vat": "Include VAT (8.1%)",
-          "regional_fee": "Regional fee surcharge"
+          "grid_product": "Grid product",
+          "region": "Region",
+          "include_vat": "Include VAT (8.1%)"
         }
       }
     }
@@ -75,8 +85,23 @@
   },
   "entity": {
     "sensor": {
-      "current_price": {
-        "name": "Current price"
+      "electricity": {
+        "name": "Energy tariff"
+      },
+      "grid": {
+        "name": "Grid usage tariff"
+      },
+      "regional_fees": {
+        "name": "Regional charges"
+      },
+      "integrated": {
+        "name": "Basic tariff"
+      },
+      "integrated_complete": {
+        "name": "Consumption tariff"
+      },
+      "feed_in": {
+        "name": "Feed-in tariff"
       },
       "feed_in_price": {
         "name": "Feed-in price"

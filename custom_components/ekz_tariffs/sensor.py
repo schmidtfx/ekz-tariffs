@@ -28,13 +28,14 @@ from .sensor_cheapest_hours import EkzHoursQuantileSensor
 from .sensor_daily_average import EkzAverageTodaySensor, EkzAverageTomorrowSensor
 from .sensor_in_window import EkzInConsecutiveWindowSensor
 from .sensor_window_extreme import EkzWindowExtremeSensor
-from .statistics import day_slot_prices
 from .utils import FusedEvent, fuse_slots, next_midnight
 
 
 def _find_current_slot(slots: list[FusedEvent], now: dt.datetime) -> FusedEvent | None:
+    # UTC comparisons avoid ambiguous or skipped local times on DST transitions.
+    now_utc = dt_util.as_utc(now)
     for s in slots:
-        if s.start <= now < s.end:
+        if dt_util.as_utc(s.start) <= now_utc < dt_util.as_utc(s.end):
             return s
     return None
 
@@ -47,33 +48,41 @@ def _find_next_boundary(
     - if currently in a slot: its end
     - else: the next slot start after now
     """
+    now_utc = dt_util.as_utc(now)
     cur = _find_current_slot(slots, now)
     if cur:
         return cur.end
 
     for s in slots:
-        if s.start > now:
+        if dt_util.as_utc(s.start) > now_utc:
             return s.start
     return None
 
 
-class EkzCurrentPriceSensor(SensorEntity):
+class EkzPriceSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = "CHF/kWh"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:cash-100"
-    # ~192 floats that change every 15 min would bloat the recorder database.
-    _unrecorded_attributes = frozenset({"raw_today", "raw_tomorrow"})
+    _unrecorded_attributes = frozenset({"forecast"})
 
     def __init__(
-        self, hass: HomeAssistant, entry_id: str, tariff_name: str | None, coordinator
+        self,
+        hass: HomeAssistant,
+        entry_id: str,
+        coordinator,
+        component: str,
+        tariff_name: str | None,
+        enabled_default: bool,
     ) -> None:
         self.hass = hass
         self._entry_id = entry_id
+        self._component = component
         self._tariff_name = tariff_name
         self._coordinator = coordinator
-        self._attr_unique_id = f"{entry_id}_current_price"
-        self._attr_name = "Current price"
+        self._attr_unique_id = f"{entry_id}_{component}"
+        self._attr_translation_key = component
+        self._attr_entity_registry_enabled_default = enabled_default
         self._unsub_boundary: Any | None = None
         self._unsub_midnight: Any | None = None
         self._attr_device_info = DeviceInfo(
@@ -84,6 +93,8 @@ class EkzCurrentPriceSensor(SensorEntity):
         self.async_on_remove(
             self._coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        self.async_on_remove(self._clear_boundary_timer)
+        self.async_on_remove(self._clear_midnight_timer)
         self._schedule_midnight_update()
         self._handle_coordinator_update()
 
@@ -104,11 +115,7 @@ class EkzCurrentPriceSensor(SensorEntity):
             self._unsub_midnight = None
 
     def _schedule_midnight_update(self) -> None:
-        """Roll raw_today/raw_tomorrow over at midnight.
-
-        fuse_slots() merges adjacent equal prices, so when 23:45 and 00:00 share
-        a price there is no price boundary at midnight to piggyback on.
-        """
+        """Refresh forecast attributes at the next local midnight."""
         self._clear_midnight_timer()
 
         async def _on_midnight(_now: dt.datetime) -> None:
@@ -124,9 +131,9 @@ class EkzCurrentPriceSensor(SensorEntity):
         slots: list[TariffSlot] = self._coordinator.data or []
         now = dt_util.now()
 
-        fused_slots = fuse_slots(slots)
+        fused_slots = self._fused_slots(slots)
         next_boundary = _find_next_boundary(fused_slots, now)
-        if not next_boundary or next_boundary <= now:
+        if not next_boundary or dt_util.as_utc(next_boundary) <= dt_util.as_utc(now):
             return
 
         async def _on_boundary(_now: dt.datetime) -> None:
@@ -139,26 +146,78 @@ class EkzCurrentPriceSensor(SensorEntity):
         )
 
     def _handle_coordinator_update(self) -> None:
-        # Tariff schedule changed (daily refresh) -> reschedule boundary updates
         self._schedule_next_boundary_update()
         self.async_write_ha_state()
+
+    def _value(self, slot: TariffSlot) -> float | None:
+        if self._component == "integrated":
+            # This subtotal excludes regional fees; the complete price includes them.
+            return slot.integrated_chf_per_kwh
+        if self._component == "integrated_complete":
+            return slot.price_chf_per_kwh
+        return getattr(slot, f"{self._component}_chf_per_kwh")
+
+    def _fused_slots(self, slots: list[TariffSlot]) -> list[FusedEvent]:
+        fused: list[FusedEvent] = []
+        current: FusedEvent | None = None
+        for slot in slots:
+            price = self._value(slot)
+            if price is None:
+                # Missing publication breaks a run; never bridge over unknown prices.
+                if current is not None:
+                    fused.append(current)
+                    current = None
+                continue
+            price = round(price, 6)
+            if (
+                current is not None
+                and current.price == price
+                and dt_util.as_utc(current.end) == dt_util.as_utc(slot.start)
+            ):
+                current.end = slot.end
+            else:
+                if current is not None:
+                    fused.append(current)
+                current = FusedEvent(slot.start, slot.end, price)
+        if current is not None:
+            fused.append(current)
+        return fused
+
+    def _current_slot(
+        self, slots: list[TariffSlot], now: dt.datetime
+    ) -> TariffSlot | None:
+        return next(
+            (
+                slot
+                for slot in slots
+                if (
+                    dt_util.as_utc(slot.start)
+                    <= dt_util.as_utc(now)
+                    < dt_util.as_utc(slot.end)
+                    and self._value(slot) is not None
+                )
+            ),
+            None,
+        )
 
     @property
     def native_value(self) -> float | None:
         slots: list[TariffSlot] = self._coordinator.data or []
         now = dt_util.now()
-        fused_slots = fuse_slots(slots)
+        fused_slots = self._fused_slots(slots)
         cur = _find_current_slot(fused_slots, now)
         if not cur:
             return None
         # avoid float noise; keep sensor stable
         return round(cur.price, 6)
 
-    def _raw_prices(self, day: dt.date) -> list[float | None]:
-        """15-minute prices for `day`, indexed from local midnight."""
-        slots: list[TariffSlot] = self._coordinator.data or []
+    def _forecast(self, slots: list[TariffSlot], now: dt.datetime) -> list[list[Any]]:
+        # Only priced slots beginning in the future are exposed as forecast data.
         return [
-            round(p, 6) if p is not None else None for p in day_slot_prices(slots, day)
+            [slot.start.isoformat(), round(price, 6)]
+            for slot in slots
+            if dt_util.as_utc(slot.start) > dt_util.as_utc(now)
+            and (price := self._value(slot)) is not None
         ]
 
     @property
@@ -166,118 +225,22 @@ class EkzCurrentPriceSensor(SensorEntity):
         slots: list[TariffSlot] = self._coordinator.data or []
         now = dt_util.now()
 
-        fused_slots = fuse_slots(slots)
-        cur = _find_current_slot(fused_slots, now)
+        cur = self._current_slot(slots, now)
+        fused_slots = self._fused_slots(slots)
         next_boundary = _find_next_boundary(fused_slots, now)
 
-        today = dt_util.as_local(now).date()
-        published = getattr(self._coordinator, "last_fetched", None)
-
-        attrs: dict[str, Any] = {
-            "schedule_date": today.isoformat(),
-            "next_change": next_boundary.isoformat() if next_boundary else None,
-            "publication_timestamp": published.isoformat() if published else None,
-            "raw_today": self._raw_prices(today),
-            "raw_tomorrow": self._raw_prices(today + dt.timedelta(days=1)),
-        }
-
-        if self._tariff_name:
-            attrs["tariff_name"] = self._tariff_name
-
-        if cur:
-            attrs.update(
-                {
-                    "slot_start": cur.start.isoformat(),
-                    "slot_end": cur.end.isoformat(),
-                }
-            )
-
-        return attrs
-
-
-class EkzFeedInPriceSensor(EkzCurrentPriceSensor):
-    """Current feed-in price with the full slot schedule as attribute."""
-
-    # Not inherited by union: __init_subclass__ reads this attribute directly,
-    # so the full set has to be restated here.
-    _unrecorded_attributes = frozenset({"raw_today", "raw_tomorrow", "schedule"})
-
-    def __init__(
-        self, hass: HomeAssistant, entry_id: str, tariff_name: str | None, coordinator
-    ) -> None:
-        super().__init__(hass, entry_id, tariff_name, coordinator)
-        self._attr_unique_id = f"{entry_id}_feed_in_price"
-        self._attr_name = "Feed-in price"
-
-    def _feed_in_slots(self) -> list[TariffSlot]:
-        slots: list[TariffSlot] = self._coordinator.data or []
-        return [s for s in slots if s.feed_in_chf_per_kwh is not None]
-
-    def _next_feed_in_boundary(self, now: dt.datetime) -> dt.datetime | None:
-        # fuse_slots() keys on the consumption price, so boundaries must be
-        # derived from the feed-in slots directly.
-        for slot in self._feed_in_slots():
-            if slot.start > now:
-                return slot.start
-            if slot.end > now:
-                return slot.end
-        return None
-
-    def _schedule_next_boundary_update(self) -> None:
-        self._clear_boundary_timer()
-        next_boundary = self._next_feed_in_boundary(dt_util.now())
-        if not next_boundary:
-            return
-
-        async def _on_boundary(_now: dt.datetime) -> None:
-            self.async_write_ha_state()
-            self._schedule_next_boundary_update()
-
-        self._unsub_boundary = async_track_point_in_time(
-            self.hass, _on_boundary, next_boundary
+        published = self._coordinator.publication_timestamp or getattr(
+            self._coordinator, "last_fetched", None
         )
 
-    @property
-    def native_value(self) -> float | None:
-        now = dt_util.now()
-        for slot in self._feed_in_slots():
-            if slot.start <= now < slot.end:
-                return round(slot.feed_in_chf_per_kwh, 6)
-        return None
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        now = dt_util.now()
-        feed_slots = self._feed_in_slots()
-
-        cur = None
-        for slot in feed_slots:
-            if slot.start <= now < slot.end:
-                cur = slot
-                break
-
-        next_boundary = self._next_feed_in_boundary(now)
-        attrs: dict[str, Any] = {
-            "schedule_date": dt_util.as_local(now).date().isoformat(),
+        return {
+            "tariff_name": self._tariff_name,
+            "slot_start": cur.start.isoformat() if cur else None,
+            "slot_end": cur.end.isoformat() if cur else None,
             "next_change": next_boundary.isoformat() if next_boundary else None,
-            "schedule": [
-                {
-                    "start": s.start.isoformat(),
-                    "end": s.end.isoformat(),
-                    "feed_in_chf_per_kwh": round(s.feed_in_chf_per_kwh, 6),
-                }
-                for s in feed_slots
-            ],
+            "publication_timestamp": published.isoformat() if published else None,
+            "forecast": self._forecast(slots, now),
         }
-
-        if self._tariff_name:
-            attrs["tariff_name"] = self._tariff_name
-
-        if cur:
-            attrs["slot_start"] = cur.start.isoformat()
-            attrs["slot_end"] = cur.end.isoformat()
-
-        return attrs
 
 
 class EkzNextChangeSensor(SensorEntity):
@@ -556,11 +519,53 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][entry.entry_id]
 
     entities = [
-        EkzCurrentPriceSensor(
-            hass, entry.entry_id, data["tariff_name"], data["coordinator"]
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "electricity",
+            data["price_tariff_names"]["electricity"],
+            False,
         ),
-        EkzFeedInPriceSensor(
-            hass, entry.entry_id, data["tariff_name"], data["coordinator"]
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "grid",
+            data["price_tariff_names"]["grid"],
+            False,
+        ),
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "regional_fees",
+            data["price_tariff_names"]["regional_fees"],
+            False,
+        ),
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "integrated",
+            data["price_tariff_names"]["integrated"],
+            True,
+        ),
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "integrated_complete",
+            data["price_tariff_names"]["integrated_complete"],
+            True,
+        ),
+        EkzPriceSensor(
+            hass,
+            entry.entry_id,
+            data["coordinator"],
+            "feed_in",
+            data["price_tariff_names"]["feed_in"],
+            True,
         ),
         EkzNextChangeSensor(
             hass, entry.entry_id, data["tariff_name"], data["coordinator"]

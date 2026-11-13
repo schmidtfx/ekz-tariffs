@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -14,8 +15,7 @@ from .const import (
     API_CUSTOMER_TARIFFS_PATH,
     API_EMS_LINK_STATUS_PATH,
     API_TARIFFS_PATH,
-    INTEGRATED_PREFIX,
-    REGIONAL_FEE_NONE,
+    ELECTRICITY_PRODUCT_BY_GRID_PRODUCT,
     VAT_RATE,
 )
 
@@ -25,8 +25,14 @@ _LOGGER = logging.getLogger(__name__)
 def _extract_chf_kwh(components: list[dict[str, Any]]) -> float | None:
     for comp in components:
         if comp.get("unit") == "CHF_kWh":
-            return comp.get("value")
+            value = comp.get("value")
+            return float(value) if value is not None else None
     return None
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    # Some public component responses omit publication timestamps.
+    return dt_util.parse_datetime(value) if isinstance(value, str) else None
 
 
 @dataclass(frozen=True)
@@ -34,6 +40,10 @@ class TariffSlot:
     start: datetime
     end: datetime
     price_chf_per_kwh: float
+    integrated_chf_per_kwh: float | None = None
+    electricity_chf_per_kwh: float | None = None
+    grid_chf_per_kwh: float | None = None
+    regional_fees_chf_per_kwh: float | None = None
     feed_in_chf_per_kwh: float | None = None
 
 
@@ -58,119 +68,160 @@ class EkzTariffsApi:
 
     def __init__(self, session: ClientSession):
         self._session = session
+        self.publication_timestamp: datetime | None = None
 
     async def fetch_tariffs(
         self,
-        tariff_name: str,
+        grid_product: str,
+        region: str | None,
         start: datetime,
         end: datetime,
         incl_vat: bool = False,
-        regional_fee: str | None = None,
     ) -> list[TariffSlot]:
-        """Fetch tariff slots from EKZ public API for time range."""
+        """Fetch each selected public tariff component for a time range."""
+        try:
+            electricity_product = ELECTRICITY_PRODUCT_BY_GRID_PRODUCT[grid_product]
+        except KeyError as err:
+            raise ValueError(f"Unknown EKZ grid product: {grid_product}") from err
+
         start = dt_util.as_local(start)
         end = dt_util.as_local(end)
 
+        # The public endpoint returns one tariff component per request.
+        requests = [
+            self._fetch_component(
+                start,
+                end,
+                tariff_name=f"grid_{grid_product}_inclFees",
+            ),
+            self._fetch_component(
+                start,
+                end,
+                tariff_name=f"electricity_{electricity_product}",
+            ),
+            self._fetch_component(start, end, tariff_type="feed_in"),
+        ]
+        if region:
+            requests.append(
+                self._fetch_component(
+                    start,
+                    end,
+                    tariff_name=f"regional_fees_{region}",
+                )
+            )
+        responses = await asyncio.gather(*requests)
+
+        grid_prices = _parse_component_values(responses[0][0], "grid")
+        electricity_prices = _parse_component_values(responses[1][0], "electricity")
+        feed_in_prices = _parse_component_values(responses[2][0], "feed_in")
+        regional_prices = (
+            _parse_component_values(responses[3][0], "regional_fees") if region else {}
+        )
+        self.publication_timestamp = _latest_publication_timestamp(
+            timestamp for _, timestamp in responses
+        )
+
+        return _make_slots(
+            grid_prices,
+            electricity_prices,
+            regional_prices,
+            feed_in_prices,
+            incl_vat,
+            region_configured=bool(region),
+        )
+
+    async def _fetch_component(
+        self,
+        start: datetime,
+        end: datetime,
+        *,
+        tariff_name: str | None = None,
+        tariff_type: str | None = None,
+    ) -> tuple[dict[str, Any], datetime | None]:
         params = {
-            "tariff_name": f"{INTEGRATED_PREFIX}{tariff_name}",
             "start_timestamp": start.isoformat(timespec="seconds"),
             "end_timestamp": end.isoformat(timespec="seconds"),
         }
+        if tariff_name:
+            params["tariff_name"] = tariff_name
+        if tariff_type:
+            params["tariff_type"] = tariff_type
 
-        url = f"{API_BASE}{API_TARIFFS_PATH}"
-
-        async with self._session.get(url, params=params, timeout=30) as resp:
+        async with self._session.get(
+            f"{API_BASE}{API_TARIFFS_PATH}", params=params, timeout=30
+        ) as resp:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json()
 
-        slots = self._parse_tariff_slots(data, incl_vat=incl_vat)
+        published = _parse_datetime(data.get("publication_timestamp"))
+        return data, dt_util.as_local(published) if published else None
 
-        if regional_fee and regional_fee != REGIONAL_FEE_NONE:
-            regional_price = await self._fetch_regional_fee_price(
-                regional_fee, start, end
+
+def _parse_component_values(
+    data: dict[str, Any], component_name: str
+) -> dict[tuple[datetime, datetime], float]:
+    values: dict[tuple[datetime, datetime], float] = {}
+    for item in data.get("prices", []):
+        start_ts = _parse_datetime(item.get("start_timestamp"))
+        end_ts = _parse_datetime(item.get("end_timestamp"))
+        if start_ts is None or end_ts is None:
+            continue
+        value = _extract_chf_kwh(item.get(component_name, []))
+        if value is not None:
+            # UTC keys let separately fetched components join across offset formats.
+            values[(dt_util.as_utc(start_ts), dt_util.as_utc(end_ts))] = value
+    return values
+
+
+def _latest_publication_timestamp(
+    timestamps: Any,
+) -> datetime | None:
+    available = [timestamp for timestamp in timestamps if timestamp is not None]
+    return max(available, key=dt_util.as_utc) if available else None
+
+
+def _make_slots(
+    grid_prices: dict[tuple[datetime, datetime], float],
+    electricity_prices: dict[tuple[datetime, datetime], float],
+    regional_prices: dict[tuple[datetime, datetime], float],
+    feed_in_prices: dict[tuple[datetime, datetime], float],
+    incl_vat: bool,
+    *,
+    region_configured: bool,
+) -> list[TariffSlot]:
+    """Parse tariff slots from API response."""
+    keys = sorted(set(grid_prices) | set(electricity_prices))
+    slots: list[TariffSlot] = []
+    vat_multiplier = 1 + VAT_RATE if incl_vat else 1.0
+    for start, end in keys:
+        grid = grid_prices.get((start, end))
+        electricity = electricity_prices.get((start, end))
+        # A slot is usable only when both core tariff components are published.
+        if grid is None or electricity is None:
+            continue
+        regional = regional_prices.get((start, end))
+        # Don't report a total until the selected region's fee is available.
+        if region_configured and regional is None:
+            continue
+        regional = regional or 0.0
+        feed_in = feed_in_prices.get((start, end))
+        integrated = grid + electricity
+        # VAT applies only to consumption prices; feed-in is stored unchanged.
+        slots.append(
+            TariffSlot(
+                start=dt_util.as_local(start),
+                end=dt_util.as_local(end),
+                price_chf_per_kwh=round((integrated + regional) * vat_multiplier, 4),
+                integrated_chf_per_kwh=round(integrated * vat_multiplier, 4),
+                electricity_chf_per_kwh=round(electricity * vat_multiplier, 4),
+                grid_chf_per_kwh=round(grid * vat_multiplier, 4),
+                regional_fees_chf_per_kwh=round(regional * vat_multiplier, 4),
+                feed_in_chf_per_kwh=(
+                    round(feed_in, 4) if feed_in is not None else None
+                ),
             )
-            if regional_price is not None:
-                if incl_vat:
-                    regional_price = regional_price * (1 + VAT_RATE)
-                slots = [
-                    replace(
-                        s,
-                        price_chf_per_kwh=round(
-                            s.price_chf_per_kwh + regional_price, 4
-                        ),
-                    )
-                    for s in slots
-                ]
-
-        return slots
-
-    async def _fetch_regional_fee_price(
-        self, fee_name: str, start: datetime, end: datetime
-    ) -> float | None:
-        """Fetch a regional fee tariff and return its CHF_kWh price."""
-        params = {
-            "tariff_name": fee_name,
-            "start_timestamp": start.isoformat(timespec="seconds"),
-            "end_timestamp": end.isoformat(timespec="seconds"),
-        }
-        url = f"{API_BASE}{API_TARIFFS_PATH}"
-
-        try:
-            async with self._session.get(url, params=params, timeout=30) as resp:
-                resp.raise_for_status()
-                data: dict[str, Any] = await resp.json()
-        except Exception:
-            _LOGGER.exception("Failed to fetch regional fee %s", fee_name)
-            return None
-
-        # Regional fee responses use the "regional_fees" key instead of "integrated"
-        for item in data.get("prices", []):
-            fee = _extract_chf_kwh(item.get("regional_fees", []))
-            if fee is not None:
-                return float(fee)
-
-        return None
-
-    def _parse_tariff_slots(
-        self, data: dict[str, Any], incl_vat: bool = False
-    ) -> list[TariffSlot]:
-        """Parse tariff slots from API response."""
-        slots: list[TariffSlot] = []
-        for item in data.get("prices", []):
-            start_ts = dt_util.parse_datetime(item["start_timestamp"])
-            end_ts = dt_util.parse_datetime(item["end_timestamp"])
-            if start_ts is None or end_ts is None:
-                continue
-            price_val = None
-            for comp in item.get("integrated", []):
-                if comp.get("unit") == "CHF_kWh":
-                    price_val = comp.get("value")
-                    if incl_vat:
-                        price_val = price_val * (1 + VAT_RATE)
-                    break
-
-            feed_in_val = _extract_chf_kwh(item.get("feed_in", []))
-            if feed_in_val is not None and incl_vat:
-                feed_in_val = feed_in_val * (1 + VAT_RATE)
-
-            if price_val is None:
-                continue
-
-            slots.append(
-                TariffSlot(
-                    start=dt_util.as_local(start_ts),
-                    end=dt_util.as_local(end_ts),
-                    price_chf_per_kwh=round(float(price_val), 4),
-                    feed_in_chf_per_kwh=(
-                        round(float(feed_in_val), 4)
-                        if feed_in_val is not None
-                        else None
-                    ),
-                )
-            )
-
-        slots.sort(key=lambda s: s.start)
-        return slots
+        )
+    return slots
 
 
 class EkzTariffsOAuthApi:
@@ -179,6 +230,7 @@ class EkzTariffsOAuthApi:
     def __init__(self, oauth_session: OAuth2Session, session: ClientSession):
         self._oauth_session = oauth_session
         self._session = session
+        self.publication_timestamp: datetime | None = None
 
     async def _get_headers(self) -> dict[str, str]:
         """Get authorization headers with valid access token."""
@@ -193,7 +245,6 @@ class EkzTariffsOAuthApi:
         start: datetime,
         end: datetime,
         incl_vat: bool = False,
-        regional_fee: str | bool | None = None,
     ) -> list[TariffSlot]:
         """Fetch customer-specific tariffs from authenticated API."""
         start = dt_util.as_local(start)
@@ -221,39 +272,54 @@ class EkzTariffsOAuthApi:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json()
 
+        self.publication_timestamp = _parse_datetime(data.get("publication_timestamp"))
+        if self.publication_timestamp is not None:
+            self.publication_timestamp = dt_util.as_local(self.publication_timestamp)
+
         # Parse the response — /customerTariffs returns all tariff types
         # (integrated, regional_fees, etc.) in one response when no
         # tariff_type filter is given.
         slots: list[TariffSlot] = []
         for item in data.get("prices", []):
-            start_ts = dt_util.parse_datetime(item["start_timestamp"])
-            end_ts = dt_util.parse_datetime(item["end_timestamp"])
+            start_ts = _parse_datetime(item.get("start_timestamp"))
+            end_ts = _parse_datetime(item.get("end_timestamp"))
             if start_ts is None or end_ts is None:
                 continue
-            price_val = _extract_chf_kwh(item.get("integrated", []))
-            if price_val is None:
+            grid = _extract_chf_kwh(item.get("grid", []))
+            electricity = _extract_chf_kwh(item.get("electricity", []))
+            # Customer responses may omit regional fees when none apply.
+            regional = _extract_chf_kwh(item.get("regional_fees", [])) or 0.0
+            integrated = _extract_chf_kwh(item.get("integrated", []))
+            if grid is not None and electricity is not None:
+                # Integrated is the grid-plus-electricity subtotal, not the total.
+                integrated_price = grid + electricity
+            elif integrated is not None:
+                integrated_price = integrated
+            else:
                 continue
+            price = integrated_price + regional
+            feed_in = _extract_chf_kwh(item.get("feed_in", []))
 
-            feed_in_val = _extract_chf_kwh(item.get("feed_in", []))
+            vat_multiplier = 1 + VAT_RATE if incl_vat else 1.0
 
-            # Sum regional fees from the same response (no extra API call)
-            if regional_fee and regional_fee != REGIONAL_FEE_NONE:
-                price_val += _extract_chf_kwh(item.get("regional_fees", [])) or 0
-
-            if incl_vat:
-                price_val = price_val * (1 + VAT_RATE)
-                if feed_in_val is not None:
-                    feed_in_val = feed_in_val * (1 + VAT_RATE)
-
+            # Feed-in remains VAT-exclusive while consumption components include VAT.
             slots.append(
                 TariffSlot(
                     start=dt_util.as_local(start_ts),
                     end=dt_util.as_local(end_ts),
-                    price_chf_per_kwh=round(float(price_val), 4),
-                    feed_in_chf_per_kwh=(
-                        round(float(feed_in_val), 4)
-                        if feed_in_val is not None
+                    price_chf_per_kwh=round(price * vat_multiplier, 4),
+                    integrated_chf_per_kwh=round(integrated_price * vat_multiplier, 4),
+                    electricity_chf_per_kwh=(
+                        round(electricity * vat_multiplier, 4)
+                        if electricity is not None
                         else None
+                    ),
+                    grid_chf_per_kwh=(
+                        round(grid * vat_multiplier, 4) if grid is not None else None
+                    ),
+                    regional_fees_chf_per_kwh=round(regional * vat_multiplier, 4),
+                    feed_in_chf_per_kwh=(
+                        round(feed_in, 4) if feed_in is not None else None
                     ),
                 )
             )

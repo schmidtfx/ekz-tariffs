@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Any
 
 from aiohttp.client_exceptions import ClientResponseError
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -20,12 +21,19 @@ _LOGGER = logging.getLogger(__name__)
 class EmsLinkStatusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator to fetch and share EMS link status data."""
 
-    def __init__(self, hass: HomeAssistant, api, ems_instance_id: str):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        api,
+        ems_instance_id: str,
+    ):
         super().__init__(
             hass,
             _LOGGER,
             name="EKZ EMS Link Status",
             update_interval=None,
+            config_entry=config_entry,
         )
         self._api = api
         self._ems_instance_id = ems_instance_id
@@ -49,30 +57,33 @@ class EmsLinkStatusCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
 
 class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
-    """Coordinator for public API (requires tariff name)."""
+    """Coordinator for the public API."""
 
     def __init__(
         self,
         hass: HomeAssistant,
+        config_entry: ConfigEntry,
         api: EkzTariffsApi,
-        tariff_name: str,
+        grid_product: str,
+        region: str | None,
         store: Store,
         incl_vat: bool = False,
-        regional_fee: str | None = None,
     ):
         super().__init__(
             hass,
             _LOGGER,
             name="EKZ Tariffs",
             update_interval=None,
+            config_entry=config_entry,
         )
 
         self._api = api
-        self._tariff_name = tariff_name
+        self._grid_product = grid_product
+        self._region = region
         self._store = store
         self._incl_vat = incl_vat
-        self._regional_fee = regional_fee
         self.last_fetched: dt_util.dt.datetime | None = None
+        self.publication_timestamp: dt_util.dt.datetime | None = None
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -86,17 +97,22 @@ class EkzTariffsCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
             )
             end = start + timedelta(days=2)
             slots = await self._api.fetch_tariffs(
-                tariff_name=self._tariff_name,
+                grid_product=self._grid_product,
+                region=self._region,
                 start=start,
                 end=end,
                 incl_vat=self._incl_vat,
-                regional_fee=self._regional_fee,
             )
             self.last_fetched = dt_util.now()
+            # Fall back to fetch time when the API omits its publication timestamp.
+            self.publication_timestamp = (
+                self._api.publication_timestamp or self.last_fetched
+            )
             await self._store.async_save(
                 {
                     "slots": slots_to_json(slots),
                     "fetched_at": self.last_fetched.isoformat(),
+                    "publication_timestamp": self.publication_timestamp.isoformat(),
                 }
             )
             return slots
@@ -110,25 +126,26 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
     def __init__(
         self,
         hass: HomeAssistant,
+        config_entry: ConfigEntry,
         api: EkzTariffsOAuthApi,
         store: Store,
         ems_instance_id: str,
         incl_vat: bool = False,
-        regional_fee: str | bool | None = None,
     ):
         super().__init__(
             hass,
             _LOGGER,
             name="EKZ Customer Tariffs",
             update_interval=None,
+            config_entry=config_entry,
         )
 
         self._api = api
         self._store = store
         self._ems_instance_id = ems_instance_id
         self._incl_vat = incl_vat
-        self._regional_fee = regional_fee
         self.last_fetched: dt_util.dt.datetime | None = None
+        self.publication_timestamp: dt_util.dt.datetime | None = None
 
     async def _async_update_data(self) -> list[TariffSlot]:
         try:
@@ -146,13 +163,17 @@ class EkzTariffsOAuthCoordinator(DataUpdateCoordinator[list[TariffSlot]]):
                 start=start,
                 end=end,
                 incl_vat=self._incl_vat,
-                regional_fee=self._regional_fee,
             )
             self.last_fetched = dt_util.now()
+            # Keep attribute behavior consistent with public API responses.
+            self.publication_timestamp = (
+                self._api.publication_timestamp or self.last_fetched
+            )
             await self._store.async_save(
                 {
                     "slots": slots_to_json(slots),
                     "fetched_at": self.last_fetched.isoformat(),
+                    "publication_timestamp": self.publication_timestamp.isoformat(),
                 }
             )
             return slots
